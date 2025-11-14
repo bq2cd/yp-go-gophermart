@@ -1,0 +1,35 @@
+[tools]
+go = "1.24"
+golangci-lint = "2.6"
+
+[tasks.pre-push]
+alias = "default"
+description = "Validate Go code before pushing/creating PR"
+depends = ["generate", "fmt", "lint", "test"]
+
+[tasks.generate]
+description = "Generate Go code"
+run = "go generate ./..."
+
+[tasks.fmt]
+description = "Format Go code"
+wait_for = ["generate"]
+run = "golangci-lint fmt"
+
+[tasks.lint]
+description = "Lint Go code"
+wait_for = ["generate", "fmt"]
+run = "golangci-lint run"
+
+[tasks.test]
+description = "Test Go code"
+wait_for = ["lint"]
+run = "go test -failfast -race ./..."
+
+[tasks.coverage]
+description = "Generate coverage for Go tests"
+wait_for = ["lint"]
+run = [
+  "go test -failfast -cover -coverprofile=coverage.out ./...",
+  "go tool cover -html=coverage.out",
+]

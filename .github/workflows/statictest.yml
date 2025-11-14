@@ -4,13 +4,18 @@ on:
   pull_request:
   push:
     branches:
-      - master
       - main
+      - master
+      - develop
 
 jobs:
   statictest:
     runs-on: ubuntu-latest
-    container: golang:1.24
+    container:
+      image: golang:1.24
+      volumes:
+        - go-build-cache:/root/.cache/go-build
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Run Github Actions workflow locally using nektos/act"
+
+CMD=(
+  act
+  --action-offline-mode
+  --use-new-action-cache
+  --container-architecture=linux/amd64
+  --container-daemon-socket=unix:///var/run/docker.sock
+)
+
+"${CMD[@]}" "$@"

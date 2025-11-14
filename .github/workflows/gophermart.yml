@@ -7,15 +7,28 @@ on:
     branches:
       - main
       - master
+      - develop
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
-    container: golang:1.24
+    container:
+      image: golang:1.24
+      volumes:
+        - go-build-cache:/root/.cache/go-build
 
     services:
-      postgres:
+      db-gophermart:
+        image: postgres
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: praktikum
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      db-accrual:
         image: postgres
         env:
           POSTGRES_PASSWORD: postgres
@@ -30,12 +43,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Download autotests binaries
+      - name: Download gophermarttest binary
         uses: robinraju/release-downloader@v1.8
         with:
           repository: Yandex-Practicum/go-autotests
           latest: true
-          fileName: "*"
+          fileName: gophermarttest
+          out-file-path: .tools
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download random binary
+        uses: robinraju/release-downloader@v1.8
+        with:
+          repository: Yandex-Practicum/go-autotests
+          latest: true
+          fileName: random
           out-file-path: .tools
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -57,8 +79,8 @@ jobs:
             -gophermart-binary-path=cmd/gophermart/gophermart \
             -gophermart-host=localhost \
             -gophermart-port=8080 \
-            -gophermart-database-uri="postgresql://postgres:postgres@postgres/praktikum?sslmode=disable" \
+            -gophermart-database-uri="postgresql://postgres:postgres@db-gophermart/praktikum?sslmode=disable" \
             -accrual-binary-path=cmd/accrual/accrual_linux_amd64 \
             -accrual-host=localhost \
             -accrual-port=$(random unused-port) \
-            -accrual-database-uri="postgresql://postgres:postgres@postgres/praktikum?sslmode=disable"
+            -accrual-database-uri="postgresql://postgres:postgres@db-accrual/praktikum?sslmode=disable"
