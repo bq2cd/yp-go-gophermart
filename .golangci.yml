@@ -19,9 +19,12 @@ linters:
       - path: '(.+)_test\.go'
         linters:
           - dupl
-          - gosec
+          - err113
           - exhaustruct
+          - funlen
+          - gosec
           - ireturn
+          - revive
 
 formatters:
   enable:
