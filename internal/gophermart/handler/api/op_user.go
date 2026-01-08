@@ -8,7 +8,7 @@ import (
 // a new user and for authenticating an existing one.
 type LoginPassword struct {
 	Login    string `json:"login"    validate:"required,min=4"`
-	Password string `json:"password" validate:"required,min=8"`
+	Password string `json:"password" validate:"required,min=8,max=64"`
 }
 
 // UserAuthenticated defines server's response when user has been
