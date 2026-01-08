@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
 version: "2"
 
 linters:
@@ -5,19 +6,28 @@ linters:
   enable:
     - wsl_v5
   disable:
+    - depguard
+    - paralleltest
     - wsl
   settings:
     wsl_v5:
       allow-first-in-block: true
-      allow-whole-block: false
-      branch-max-lines: 2
-    revive:
-      rules:
-        - name: package-comments
-          disabled: true
+      allow-whole-block: true
+      branch-max-lines: 4
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go'
+        linters:
+          - dupl
+          - gosec
+          - exhaustruct
+          - ireturn
 
 formatters:
   enable:
     - gofmt
     - goimports
     - golines
+  settings:
+    golines:
+      max-len: 120
