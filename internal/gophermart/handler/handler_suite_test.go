@@ -1,0 +1,117 @@
+package handler_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"maps"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"go.uber.org/mock/gomock"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+)
+
+/////////////////////////////////////////////////////////////////////////////////
+
+type TestRequest struct {
+	Method string
+	Path   string
+	Header http.Header
+	Body   io.Reader
+}
+
+func NewTestRequest() *TestRequest {
+	return &TestRequest{
+		Header: http.Header{},
+	}
+}
+
+func (r *TestRequest) SetBodyJSON(obj any) {
+	GinkgoHelper()
+
+	content, err := json.Marshal(obj)
+	Expect(err).NotTo(HaveOccurred())
+
+	r.Body = bytes.NewReader(content)
+}
+
+func (r *TestRequest) SetBodyPlain(data string) {
+	r.Body = strings.NewReader(data)
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+
+type TestContext struct {
+	Ctrl            *gomock.Controller
+	Handler         *handler.Handler
+	SecurityHandler *handler.SecurityHandler
+	Router          *gin.Engine
+	Recorder        *httptest.ResponseRecorder
+	Request         *TestRequest
+}
+
+func InitTestContext() *TestContext {
+	gin.SetMode(gin.ReleaseMode)
+
+	ctx := new(TestContext)
+
+	ctx.Router = gin.New()
+	ctx.Router.Use(gin.Recovery())
+
+	ctx.Ctrl = gomock.NewController(GinkgoT())
+
+	ctx.Recorder = httptest.NewRecorder()
+	ctx.Request = NewTestRequest()
+
+	return ctx
+}
+
+func (c *TestContext) ProcessRequest() {
+	api.Initialize(c.Router, c.Handler, c.SecurityHandler)
+
+	request := httptest.NewRequest(c.Request.Method, c.Request.Path, c.Request.Body)
+	maps.Copy(request.Header, c.Request.Header)
+
+	c.Router.ServeHTTP(c.Recorder, request)
+}
+
+func (c *TestContext) GetStatusCode() int {
+	return c.Recorder.Result().StatusCode
+}
+
+func (c *TestContext) GetHeaderValue(name string) string {
+	return c.Recorder.Result().Header.Get(name)
+}
+
+func (c *TestContext) GetBodyBytes() []byte {
+	return c.Recorder.Body.Bytes()
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+
+func UnmashalBodyJSON[T any](data []byte) T {
+	GinkgoHelper()
+
+	out := new(T)
+	err := json.Unmarshal(data, out)
+
+	Expect(err).NotTo(HaveOccurred())
+
+	return *out
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+
+func TestHandler(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Handler Suite")
+}
