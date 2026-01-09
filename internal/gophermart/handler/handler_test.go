@@ -35,6 +35,10 @@ func NewTestRequest() *TestRequest {
 	}
 }
 
+func (r *TestRequest) SetAuthToken(token string) {
+	r.Header.Set(api.AuthorizationHeaderName, api.AuthorizationHeaderValuePrefix+token)
+}
+
 func (r *TestRequest) SetBodyJSON(obj any) {
 	GinkgoHelper()
 
@@ -99,17 +103,19 @@ func (c *TestContext) GetBodyBytes() []byte {
 /////////////////////////////////////////////////////////////////////////////////
 
 type TestMocks struct {
-	UserService  *mocks.MockUserService
-	TokenService *mocks.MockTokenService
+	TokenService   *mocks.MockTokenService
+	UserService    *mocks.MockUserService
+	BalanceService *mocks.MockBalanceService
 }
 
 func InitTestMocks(testCtx *TestContext) *TestMocks {
 	testMocks := &TestMocks{
-		UserService:  mocks.NewMockUserService(testCtx.Ctrl),
-		TokenService: mocks.NewMockTokenService(testCtx.Ctrl),
+		TokenService:   mocks.NewMockTokenService(testCtx.Ctrl),
+		UserService:    mocks.NewMockUserService(testCtx.Ctrl),
+		BalanceService: mocks.NewMockBalanceService(testCtx.Ctrl),
 	}
 
-	testCtx.Handler = handler.NewHandler(testMocks.UserService, testMocks.TokenService)
+	testCtx.Handler = handler.NewHandler(testMocks.TokenService, testMocks.UserService, testMocks.BalanceService)
 	testCtx.SecurityHandler = handler.NewSecurityHandler(testMocks.TokenService)
 
 	return testMocks

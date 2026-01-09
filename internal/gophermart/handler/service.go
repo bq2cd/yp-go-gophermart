@@ -10,9 +10,19 @@ type UserService interface {
 	Authenticate(userID domain.UserID, passwordPlain domain.PasswordPlain) error
 }
 
-// TokenService provides methods to issue tokens an authenticated user.
+// TokenService provides methods to issue and validate tokens for an authenticated user.
 //
 //go:generate go tool mockgen -typed -destination=mocks/token_service.go -package=mocks . TokenService
 type TokenService interface {
 	IssueToken(userID domain.UserID) (domain.Token, error)
+	ValidateToken(token domain.Token) (domain.UserID, error)
+}
+
+// BalanceService provides methods to issue tokens an authenticated user.
+//
+//go:generate go tool mockgen -typed -destination=mocks/balance_service.go -package=mocks . BalanceService
+type BalanceService interface {
+	GetBalance(userID domain.UserID) (float64, error)
+	GetTotalAmountWithdrawn(userID domain.UserID) (float64, error)
+	GetWithdrawalTransactions(userID domain.UserID) ([]domain.WithdrawalTransaction, error)
 }

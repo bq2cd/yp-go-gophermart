@@ -7,14 +7,16 @@ var _ api.Handler = (*Handler)(nil)
 
 // Handler provides implementation for [api.Handler] operations.
 type Handler struct {
-	userService  UserService
-	tokenService TokenService
+	tokenService   TokenService
+	userService    UserService
+	balanceService BalanceService
 }
 
 // NewHandler initializes [Handler].
-func NewHandler(userService UserService, tokenService TokenService) *Handler {
+func NewHandler(tokenService TokenService, userService UserService, balanceService BalanceService) *Handler {
 	return &Handler{
-		userService:  userService,
-		tokenService: tokenService,
+		tokenService:   tokenService,
+		userService:    userService,
+		balanceService: balanceService,
 	}
 }

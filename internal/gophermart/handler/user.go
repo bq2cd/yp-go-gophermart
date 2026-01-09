@@ -20,3 +20,19 @@ func issueUserToken(tokenService TokenService, operation userAuthenticatedOperat
 
 	operation.RespondOK(api.UserAuthenticated{Token: token.String()})
 }
+
+type userIDGetter interface {
+	GetUserID() (api.UserID, bool)
+	RespondUnauthorized()
+}
+
+func (h *Handler) ensureUserID(operation userIDGetter) (domain.UserID, bool) {
+	apiUserID, ok := operation.GetUserID()
+	if !ok {
+		operation.RespondUnauthorized()
+
+		return domain.UserIDEmptyValue, false
+	}
+
+	return domain.UserID(apiUserID), true
+}

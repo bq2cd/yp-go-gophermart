@@ -78,3 +78,42 @@ func (c *MockTokenServiceIssueTokenCall) DoAndReturn(f func(domain.UserID) (doma
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// ValidateToken mocks base method.
+func (m *MockTokenService) ValidateToken(token domain.Token) (domain.UserID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ValidateToken", token)
+	ret0, _ := ret[0].(domain.UserID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ValidateToken indicates an expected call of ValidateToken.
+func (mr *MockTokenServiceMockRecorder) ValidateToken(token any) *MockTokenServiceValidateTokenCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockTokenService)(nil).ValidateToken), token)
+	return &MockTokenServiceValidateTokenCall{Call: call}
+}
+
+// MockTokenServiceValidateTokenCall wrap *gomock.Call
+type MockTokenServiceValidateTokenCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockTokenServiceValidateTokenCall) Return(arg0 domain.UserID, arg1 error) *MockTokenServiceValidateTokenCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockTokenServiceValidateTokenCall) Do(f func(domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockTokenServiceValidateTokenCall) DoAndReturn(f func(domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
