@@ -25,7 +25,7 @@ func (h *Handler) RegisterUser(operation *api.OperationRegisterUser) {
 		return
 	}
 
-	h.issueToken(operation, userID)
+	issueUserToken(h.tokenService, operation, userID)
 }
 
 func (h *Handler) sendRegisterUserError(operation *api.OperationRegisterUser, err error) {
@@ -36,15 +36,4 @@ func (h *Handler) sendRegisterUserError(operation *api.OperationRegisterUser, er
 	}
 
 	operation.RespondServerError()
-}
-
-func (h *Handler) issueToken(operation *api.OperationRegisterUser, userID domain.UserID) {
-	token, err := h.tokenService.IssueToken(userID)
-	if err != nil {
-		operation.RespondServerError()
-
-		return
-	}
-
-	operation.RespondOK(api.UserAuthenticated{Token: token.String()})
 }
