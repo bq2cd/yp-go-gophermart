@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -15,27 +16,27 @@ import (
 
 var _ = Describe("RegisterUser", func() {
 	var (
-		tsctx            *TestContext
+		testCtx          *TestContext
 		mockUserService  *mocks.MockUserService
 		mockTokenService *mocks.MockTokenService
 		loginPassword    api.LoginPassword
 	)
 
 	BeforeEach(func() {
-		tsctx = InitTestContext()
+		testCtx = InitTestContext()
 
-		mockUserService = mocks.NewMockUserService(tsctx.Ctrl)
-		mockTokenService = mocks.NewMockTokenService(tsctx.Ctrl)
+		mockUserService = mocks.NewMockUserService(testCtx.Ctrl)
+		mockTokenService = mocks.NewMockTokenService(testCtx.Ctrl)
 
-		tsctx.Handler = handler.NewHandler(mockUserService, mockTokenService)
-		tsctx.SecurityHandler = handler.NewSecurityHandler(mockTokenService)
+		testCtx.Handler = handler.NewHandler(mockUserService, mockTokenService)
+		testCtx.SecurityHandler = handler.NewSecurityHandler(mockTokenService)
 
-		tsctx.Request.Method = http.MethodPost
-		tsctx.Request.Path = "/api/user/register"
+		testCtx.Request.Method = http.MethodPost
+		testCtx.Request.Path = "/api/user/register"
 	})
 
 	JustBeforeEach(func() {
-		tsctx.ProcessRequest()
+		testCtx.ProcessRequest()
 	})
 
 	When("valid login and password are provided", func() {
@@ -49,21 +50,22 @@ var _ = Describe("RegisterUser", func() {
 				Password: "password1",
 			}
 
-			tsctx.Request.SetBodyJSON(loginPassword)
+			testCtx.Request.SetBodyJSON(loginPassword)
 
 			expectedToken = "some-valid-auth-token"
 
 			mockUserService.EXPECT().
-				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password))
+				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
+				Return(nil)
 			mockTokenService.EXPECT().
 				IssueToken(domain.UserID(loginPassword.Login)).
 				Return(domain.Token(expectedToken), nil)
 		})
 
 		It("should return 200 OK and a token in Authorization header", func() {
-			Expect(tsctx.GetStatusCode()).To(Equal(http.StatusOK))
+			Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
 			Expect(
-				tsctx.GetHeaderValue(api.AuthorizationHeaderName),
+				testCtx.GetHeaderValue(api.AuthorizationHeaderName),
 			).To(Equal(api.AuthorizationHeaderValuePrefix + expectedToken))
 		})
 	})
@@ -76,12 +78,12 @@ var _ = Describe("RegisterUser", func() {
 					Password: password,
 				}
 
-				tsctx.Request.SetBodyJSON(loginPassword)
+				testCtx.Request.SetBodyJSON(loginPassword)
 			})
 
 			It("should return 400 Bad Request", func() {
-				Expect(tsctx.GetStatusCode()).To(Equal(http.StatusBadRequest))
-				Expect(tsctx.GetHeaderValue(api.AuthorizationHeaderName)).To(BeEmpty())
+				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusBadRequest))
+				Expect(testCtx.GetHeaderValue(api.AuthorizationHeaderName)).To(BeEmpty())
 			})
 		},
 		Entry("password is missing", "user1", ""),
@@ -92,4 +94,55 @@ var _ = Describe("RegisterUser", func() {
 		Entry("password is longer than 64 characters", "user1", strings.Repeat("pass1234", 9)),
 	)
 
+	When("user with given login already exists", func() {
+		BeforeEach(func() {
+			loginPassword = api.LoginPassword{
+				Login:    "user2",
+				Password: "password2",
+			}
+
+			testCtx.Request.SetBodyJSON(loginPassword)
+
+			mockUserService.EXPECT().
+				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
+				Return(domain.ErrUserIDConflict)
+		})
+
+		It("should return 409 Conflict", func() {
+			Expect(testCtx.GetStatusCode()).To(Equal(http.StatusConflict))
+			Expect(testCtx.GetHeaderValue(api.AuthorizationHeaderName)).To(BeEmpty())
+		})
+	})
+
+	DescribeTableSubtree("internal error happens",
+		func(setupMock func()) {
+			BeforeEach(func() {
+				loginPassword = api.LoginPassword{
+					Login:    "user3",
+					Password: "password3",
+				}
+
+				testCtx.Request.SetBodyJSON(loginPassword)
+
+				setupMock()
+			})
+
+			It("should return 500 Internal Server Error", func() {
+				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
+				Expect(testCtx.GetHeaderValue(api.AuthorizationHeaderName)).To(BeEmpty())
+			})
+		},
+		Entry("when registering a user", func() {
+			mockUserService.EXPECT().
+				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
+				Return(errors.New("registration failed"))
+		}),
+		Entry("when issuing a token", func() {
+			mockUserService.EXPECT().
+				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
+				Return(nil)
+			mockTokenService.EXPECT().IssueToken(domain.UserID(loginPassword.Login)).
+				Return(domain.Token(""), errors.New("cannot issue token"))
+		}),
+	)
 })
