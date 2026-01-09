@@ -9,27 +9,19 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
 )
 
 var _ = Describe("RegisterUser", func() {
 	var (
-		testCtx          *TestContext
-		mockUserService  *mocks.MockUserService
-		mockTokenService *mocks.MockTokenService
-		loginPassword    api.LoginPassword
+		testCtx       *TestContext
+		testMocks     *TestMocks
+		loginPassword api.LoginPassword
 	)
 
 	BeforeEach(func() {
 		testCtx = InitTestContext()
-
-		mockUserService = mocks.NewMockUserService(testCtx.Ctrl)
-		mockTokenService = mocks.NewMockTokenService(testCtx.Ctrl)
-
-		testCtx.Handler = handler.NewHandler(mockUserService, mockTokenService)
-		testCtx.SecurityHandler = handler.NewSecurityHandler(mockTokenService)
+		testMocks = InitTestMocks(testCtx)
 
 		testCtx.Request.Method = http.MethodPost
 		testCtx.Request.Path = "/api/user/register"
@@ -54,10 +46,10 @@ var _ = Describe("RegisterUser", func() {
 
 			expectedToken = "some-valid-auth-token"
 
-			mockUserService.EXPECT().
+			testMocks.UserService.EXPECT().
 				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
 				Return(nil)
-			mockTokenService.EXPECT().
+			testMocks.TokenService.EXPECT().
 				IssueToken(domain.UserID(loginPassword.Login)).
 				Return(domain.Token(expectedToken), nil)
 		})
@@ -103,7 +95,7 @@ var _ = Describe("RegisterUser", func() {
 
 			testCtx.Request.SetBodyJSON(loginPassword)
 
-			mockUserService.EXPECT().
+			testMocks.UserService.EXPECT().
 				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
 				Return(domain.ErrUserIDConflict)
 		})
@@ -133,15 +125,15 @@ var _ = Describe("RegisterUser", func() {
 			})
 		},
 		Entry("when registering a user", func() {
-			mockUserService.EXPECT().
+			testMocks.UserService.EXPECT().
 				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
 				Return(errors.New("registration failed"))
 		}),
 		Entry("when issuing a token", func() {
-			mockUserService.EXPECT().
+			testMocks.UserService.EXPECT().
 				Register(domain.UserID(loginPassword.Login), domain.PasswordPlain(loginPassword.Password)).
 				Return(nil)
-			mockTokenService.EXPECT().IssueToken(domain.UserID(loginPassword.Login)).
+			testMocks.TokenService.EXPECT().IssueToken(domain.UserID(loginPassword.Login)).
 				Return(domain.Token(""), errors.New("cannot issue token"))
 		}),
 	)
