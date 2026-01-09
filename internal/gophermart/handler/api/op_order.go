@@ -31,3 +31,12 @@ type Order struct {
 	Status     OrderStatus `json:"status"`
 	UploadedAt time.Time   `json:"uploaded_at"` //nolint:tagliatelle
 }
+
+// Validate ensures that [OrderID] conforms to desired bounds.
+func (oid OrderID) Validate() error {
+	if oid == 0 {
+		return ErrOrderIDMustBeGreaterThanZero
+	}
+
+	return nil
+}

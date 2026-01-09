@@ -22,6 +22,14 @@ import (
 
 /////////////////////////////////////////////////////////////////////////////////
 
+const (
+	exampleUserLogin        = "user1"
+	exampleValidAuthToken   = "some-valid-auth-token"
+	exampleInvalidAuthToken = "some-random-string"
+)
+
+/////////////////////////////////////////////////////////////////////////////////
+
 type TestRequest struct {
 	Method string
 	Path   string

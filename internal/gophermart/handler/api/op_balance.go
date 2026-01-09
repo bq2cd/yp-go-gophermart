@@ -14,7 +14,7 @@ type Balance struct {
 // WithdrawalRequest is sent to the server to withdraw certain amount
 // from the [Balance.Current] and pay for the given order ID.
 type WithdrawalRequest struct {
-	Order string  `json:"order" validate:"required,number,gt=0"`
+	Order string  `json:"order" validate:"required,number,orderID"`
 	Sum   float64 `json:"sum"   validate:"required,gt=0"`
 }
 

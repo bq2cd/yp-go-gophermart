@@ -37,8 +37,8 @@ var _ = Describe("GetBalance", func() {
 		)
 
 		BeforeEach(func() {
-			userLogin = "user1"
-			authToken = "some-valid-token"
+			userLogin = exampleUserLogin
+			authToken = exampleValidAuthToken
 			expectedBalance = api.Balance{
 				Current:   7.33,
 				Withdrawn: 50.7,
@@ -78,12 +78,12 @@ var _ = Describe("GetBalance", func() {
 				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
 			})
 		},
-		Entry("random token", "Bearer some-random-string", func() {
+		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
 			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token("some-random-string")).
+				ValidateToken(domain.Token(exampleInvalidAuthToken)).
 				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
 		}),
-		Entry("correct token without Bearer prefix", "some-valid-token", func() {}),
+		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
 	)
 
 	DescribeTableSubtree("internal error happens",
@@ -92,8 +92,8 @@ var _ = Describe("GetBalance", func() {
 				authToken string
 			)
 			BeforeEach(func() {
-				userLogin = "user3"
-				authToken = "valid-token3"
+				userLogin = exampleUserLogin
+				authToken = exampleValidAuthToken
 
 				testCtx.Request.SetAuthToken(authToken)
 

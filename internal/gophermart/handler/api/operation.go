@@ -52,7 +52,7 @@ func (op *operationCtxSecure) RespondUnauthorized() {
 func operationGetRequest[T any](ginCtx *gin.Context) (*T, error) {
 	req := new(T)
 
-	err := ginCtx.BindJSON(req)
+	err := ginCtx.ShouldBindJSON(req)
 	if err != nil {
 		return nil, fmt.Errorf("request validation error: %w", err)
 	}

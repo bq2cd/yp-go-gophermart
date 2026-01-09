@@ -25,4 +25,5 @@ type BalanceService interface {
 	GetBalance(userID domain.UserID) (float64, error)
 	GetTotalAmountWithdrawn(userID domain.UserID) (float64, error)
 	GetWithdrawalTransactions(userID domain.UserID) ([]domain.WithdrawalTransaction, error)
+	PayForOrderFromBalance(userID domain.UserID, orderID domain.OrderID, amount float64) error
 }

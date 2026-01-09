@@ -37,8 +37,8 @@ var _ = Describe("ListWithdrawals", func() {
 		)
 
 		BeforeEach(func() {
-			userLogin = "user1"
-			authToken = "some-valid-token"
+			userLogin = exampleUserLogin
+			authToken = exampleValidAuthToken
 
 			testCtx.Request.SetAuthToken(authToken)
 
@@ -139,11 +139,11 @@ var _ = Describe("ListWithdrawals", func() {
 				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
 			})
 		},
-		Entry("random token", "Bearer some-random-string", func() {
+		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
 			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token("some-random-string")).
+				ValidateToken(domain.Token(exampleInvalidAuthToken)).
 				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
 		}),
-		Entry("correct token without Bearer prefix", "some-valid-token", func() {}),
+		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
 	)
 })

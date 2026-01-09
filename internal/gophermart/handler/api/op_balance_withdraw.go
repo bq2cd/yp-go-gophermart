@@ -24,5 +24,11 @@ func (op *OperationWithdraw) RespondOK() {
 
 // RespondPaymentRequired returns '402 Payment Required' when [WithdrawalRequest.Sum] exceeds [Balance.Current].
 func (op *OperationWithdraw) RespondPaymentRequired() {
-	op.ginCtx.Status(http.StatusPaymentRequired)
+	op.ginCtx.AbortWithStatus(http.StatusPaymentRequired)
+}
+
+// RespondUnprocessableEntity returns '422 Unprocessable Entity' when [WithdrawalRequest] contains invalid data,
+// such as negative amount to withdraw or incorrect order id.
+func (op *OperationWithdraw) RespondUnprocessableEntity() {
+	op.ginCtx.AbortWithStatus(http.StatusUnprocessableEntity)
 }

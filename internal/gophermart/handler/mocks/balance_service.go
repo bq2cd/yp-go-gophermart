@@ -156,3 +156,41 @@ func (c *MockBalanceServiceGetWithdrawalTransactionsCall) DoAndReturn(f func(dom
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
+
+// PayForOrderFromBalance mocks base method.
+func (m *MockBalanceService) PayForOrderFromBalance(userID domain.UserID, orderID domain.OrderID, amount float64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PayForOrderFromBalance", userID, orderID, amount)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PayForOrderFromBalance indicates an expected call of PayForOrderFromBalance.
+func (mr *MockBalanceServiceMockRecorder) PayForOrderFromBalance(userID, orderID, amount any) *MockBalanceServicePayForOrderFromBalanceCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PayForOrderFromBalance", reflect.TypeOf((*MockBalanceService)(nil).PayForOrderFromBalance), userID, orderID, amount)
+	return &MockBalanceServicePayForOrderFromBalanceCall{Call: call}
+}
+
+// MockBalanceServicePayForOrderFromBalanceCall wrap *gomock.Call
+type MockBalanceServicePayForOrderFromBalanceCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBalanceServicePayForOrderFromBalanceCall) Return(arg0 error) *MockBalanceServicePayForOrderFromBalanceCall {
+	c.Call = c.Call.Return(arg0)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBalanceServicePayForOrderFromBalanceCall) Do(f func(domain.UserID, domain.OrderID, float64) error) *MockBalanceServicePayForOrderFromBalanceCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBalanceServicePayForOrderFromBalanceCall) DoAndReturn(f func(domain.UserID, domain.OrderID, float64) error) *MockBalanceServicePayForOrderFromBalanceCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}

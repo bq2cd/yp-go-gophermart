@@ -20,8 +20,9 @@ func (op *OperationUploadOrder) GetRequest() (OrderID, error) {
 		return 0, fmt.Errorf("cannot parse order ID: %w", err)
 	}
 
-	if *req == 0 {
-		return 0, ErrOrderIDMustBeGreaterThanZero
+	err = req.Validate()
+	if err != nil {
+		return 0, fmt.Errorf("order ID validation error: %w", err)
 	}
 
 	return *req, nil
@@ -41,11 +42,11 @@ func (op *OperationUploadOrder) RespondAccepted() {
 // RespondConflict returns '409 Conflict' when given order ID has been
 // already uploaded by another user.
 func (op *OperationUploadOrder) RespondConflict() {
-	op.ginCtx.Status(http.StatusConflict)
+	op.ginCtx.AbortWithStatus(http.StatusConflict)
 }
 
 // RespondUnprocessableEntity returns '422 Unprocessable Entity' when given order ID is incorrect, e.g.
 // there is an error in one of the digits.
 func (op *OperationUploadOrder) RespondUnprocessableEntity() {
-	op.ginCtx.Status(http.StatusUnprocessableEntity)
+	op.ginCtx.AbortWithStatus(http.StatusUnprocessableEntity)
 }
