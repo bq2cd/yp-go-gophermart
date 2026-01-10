@@ -1,5 +1,7 @@
 package domain
 
+import "time"
+
 // OrderID represents the ID of an [Order].
 type OrderID uint64
 
@@ -21,7 +23,7 @@ const (
 
 // Order combines essential information about a user's order in the system.
 type Order struct {
-	ID     OrderID
-	Status OrderStatus
-	User   UserID
+	ID        OrderID
+	Status    OrderStatus
+	CreatedAt time.Time
 }

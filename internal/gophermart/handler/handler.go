@@ -10,13 +10,20 @@ type Handler struct {
 	tokenService   TokenService
 	userService    UserService
 	balanceService BalanceService
+	orderService   OrderService
 }
 
 // NewHandler initializes [Handler].
-func NewHandler(tokenService TokenService, userService UserService, balanceService BalanceService) *Handler {
+func NewHandler(
+	tokenService TokenService,
+	userService UserService,
+	balanceService BalanceService,
+	orderService OrderService,
+) *Handler {
 	return &Handler{
 		tokenService:   tokenService,
 		userService:    userService,
 		balanceService: balanceService,
+		orderService:   orderService,
 	}
 }

@@ -124,10 +124,10 @@ var _ = Describe("ListWithdrawals", func() {
 		)
 	})
 
-	DescribeTableSubtree("user provided incorrect token",
+	DescribeTableSubtree("user provides incorrect token",
 		func(authHeaderValue string, setupMocks func()) {
 			BeforeEach(func() {
-				userLogin = "user3"
+				userLogin = exampleUserLogin
 
 				testCtx.Request.Header.Set(api.AuthorizationHeaderName, authHeaderValue)
 

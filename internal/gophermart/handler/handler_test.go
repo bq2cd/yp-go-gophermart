@@ -114,6 +114,7 @@ type TestMocks struct {
 	TokenService   *mocks.MockTokenService
 	UserService    *mocks.MockUserService
 	BalanceService *mocks.MockBalanceService
+	OrderService   *mocks.MockOrderService
 }
 
 func InitTestMocks(testCtx *TestContext) *TestMocks {
@@ -121,9 +122,15 @@ func InitTestMocks(testCtx *TestContext) *TestMocks {
 		TokenService:   mocks.NewMockTokenService(testCtx.Ctrl),
 		UserService:    mocks.NewMockUserService(testCtx.Ctrl),
 		BalanceService: mocks.NewMockBalanceService(testCtx.Ctrl),
+		OrderService:   mocks.NewMockOrderService(testCtx.Ctrl),
 	}
 
-	testCtx.Handler = handler.NewHandler(testMocks.TokenService, testMocks.UserService, testMocks.BalanceService)
+	testCtx.Handler = handler.NewHandler(
+		testMocks.TokenService,
+		testMocks.UserService,
+		testMocks.BalanceService,
+		testMocks.OrderService,
+	)
 	testCtx.SecurityHandler = handler.NewSecurityHandler(testMocks.TokenService)
 
 	return testMocks
