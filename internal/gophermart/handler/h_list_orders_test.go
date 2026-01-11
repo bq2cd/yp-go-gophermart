@@ -168,26 +168,5 @@ var _ = Describe("ListOrders", func() {
 		)
 	})
 
-	DescribeTableSubtree("user provides incorrect token",
-		func(authHeaderValue string, setupMocks func()) {
-			BeforeEach(func() {
-				userLogin = exampleUserLogin
-
-				testCtx.Request.Header.Set(api.AuthorizationHeaderName, authHeaderValue)
-
-				setupMocks()
-			})
-
-			It("should return 401 Unauthorized", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusUnauthorized))
-				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-			})
-		},
-		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(exampleInvalidAuthToken)).
-				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
-		}),
-		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
-	)
+	testCasesForUnauthorizedUser(&testCtx, &testMocks)
 })

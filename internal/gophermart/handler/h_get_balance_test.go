@@ -30,97 +30,73 @@ var _ = Describe("GetBalance", func() {
 		testCtx.ProcessRequest()
 	})
 
-	When("user is authenticated", func() {
+	Context("user is authenticated", func() {
 		var (
-			authToken       string
-			expectedBalance api.Balance
+			authToken string
 		)
 
 		BeforeEach(func() {
 			userLogin = exampleUserLogin
 			authToken = exampleValidAuthToken
-			expectedBalance = api.Balance{
-				Current:   7.33,
-				Withdrawn: 50.7,
-			}
 
 			testCtx.Request.SetAuthToken(authToken)
 
 			testMocks.TokenService.EXPECT().
 				ValidateToken(domain.Token(authToken)).
 				Return(domain.UserID(userLogin), nil)
-			testMocks.BalanceService.EXPECT().
-				GetBalance(domain.UserID(userLogin)).
-				Return(expectedBalance.Current, nil)
-			testMocks.BalanceService.EXPECT().
-				GetTotalAmountWithdrawn(domain.UserID(userLogin)).
-				Return(expectedBalance.Withdrawn, nil)
 		})
 
-		It("should return 200 OK with JSON-encoded balance", func() {
-			Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
-			Expect(UnmashalBodyJSON[api.Balance](testCtx.GetBodyBytes())).To(Equal(expectedBalance))
+		When("user requests balance", func() {
+			var (
+				expectedBalance api.Balance
+			)
+
+			BeforeEach(func() {
+				expectedBalance = api.Balance{
+					Current:   7.33,
+					Withdrawn: 50.7,
+				}
+
+				testMocks.BalanceService.EXPECT().
+					GetBalance(domain.UserID(userLogin)).
+					Return(expectedBalance.Current, nil)
+				testMocks.BalanceService.EXPECT().
+					GetTotalAmountWithdrawn(domain.UserID(userLogin)).
+					Return(expectedBalance.Withdrawn, nil)
+			})
+
+			It("should return 200 OK with JSON-encoded balance", func() {
+				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
+				Expect(UnmashalBodyJSON[api.Balance](testCtx.GetBodyBytes())).To(Equal(expectedBalance))
+			})
 		})
+
+		DescribeTableSubtree("internal error happens",
+			func(setupMocks func()) {
+				BeforeEach(func() {
+					setupMocks()
+				})
+
+				It("should return 500 Internal Server Error", func() {
+					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
+					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
+				})
+			},
+			Entry("when getting user's balance current value", func() {
+				testMocks.BalanceService.EXPECT().
+					GetBalance(domain.UserID(userLogin)).
+					Return(0, errors.New("balance current value error"))
+			}),
+			Entry("when getting user's total withdrawn amount", func() {
+				testMocks.BalanceService.EXPECT().
+					GetBalance(domain.UserID(userLogin)).
+					Return(3.5, nil)
+				testMocks.BalanceService.EXPECT().
+					GetTotalAmountWithdrawn(domain.UserID(userLogin)).
+					Return(0, errors.New("withdrawn amount error"))
+			}),
+		)
 	})
 
-	DescribeTableSubtree("user provided incorrect token",
-		func(authHeaderValue string, setupMocks func()) {
-			BeforeEach(func() {
-				userLogin = "user2"
-
-				testCtx.Request.Header.Set(api.AuthorizationHeaderName, authHeaderValue)
-
-				setupMocks()
-			})
-
-			It("should return 401 Unauthorized", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusUnauthorized))
-				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-			})
-		},
-		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(exampleInvalidAuthToken)).
-				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
-		}),
-		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
-	)
-
-	DescribeTableSubtree("internal error happens",
-		func(setupMocks func()) {
-			var (
-				authToken string
-			)
-			BeforeEach(func() {
-				userLogin = exampleUserLogin
-				authToken = exampleValidAuthToken
-
-				testCtx.Request.SetAuthToken(authToken)
-
-				testMocks.TokenService.EXPECT().
-					ValidateToken(domain.Token(authToken)).
-					Return(domain.UserID(userLogin), nil)
-
-				setupMocks()
-			})
-
-			It("should return 500 Internal Server Error", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
-				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-			})
-		},
-		Entry("when getting user's balance current value", func() {
-			testMocks.BalanceService.EXPECT().
-				GetBalance(domain.UserID(userLogin)).
-				Return(0, errors.New("balance current value error"))
-		}),
-		Entry("when getting user's total withdrawn amount", func() {
-			testMocks.BalanceService.EXPECT().
-				GetBalance(domain.UserID(userLogin)).
-				Return(3.5, nil)
-			testMocks.BalanceService.EXPECT().
-				GetTotalAmountWithdrawn(domain.UserID(userLogin)).
-				Return(0, errors.New("withdrawn amount error"))
-		}),
-	)
+	testCasesForUnauthorizedUser(&testCtx, &testMocks)
 })
