@@ -3,6 +3,7 @@ package handler_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"maps"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 
 const (
 	exampleUserLogin        = "user1"
+	exampleUserPassword     = "password1"
 	exampleValidAuthToken   = "some-valid-auth-token"
 	exampleInvalidAuthToken = "some-random-string"
 )
@@ -150,3 +152,65 @@ func UnmashalBodyJSON[T any](data []byte) T {
 }
 
 /////////////////////////////////////////////////////////////////////////////////
+
+func expectHTTPStatusWithEmptyBody(testCtxPtr **TestContext, status int) {
+	var (
+		testCtx *TestContext
+	)
+
+	BeforeEach(func() {
+		testCtx = *testCtxPtr
+	})
+
+	It(fmt.Sprintf("should return %d %s", status, http.StatusText(status)), func() {
+		Expect(testCtx.GetStatusCode()).To(Equal(status))
+		Expect(testCtx.GetBodyBytes()).To(BeEmpty())
+	})
+}
+
+func expectHTTPStatusWithJSONBody[T any](testCtxPtr **TestContext, status int, expected *T) {
+	var (
+		testCtx *TestContext
+	)
+
+	BeforeEach(func() {
+		testCtx = *testCtxPtr
+	})
+
+	It(fmt.Sprintf("should return %d %s with JSON-encoded %T", status, http.StatusText(status), *expected), func() {
+		Expect(testCtx.GetStatusCode()).To(Equal(status))
+		Expect(UnmashalBodyJSON[T](testCtx.GetBodyBytes())).To(Equal(*expected))
+	})
+}
+
+func expectHTTPStatusWithEmptyAuthHeader(testCtxPtr **TestContext, status int) {
+	var (
+		testCtx *TestContext
+	)
+
+	BeforeEach(func() {
+		testCtx = *testCtxPtr
+	})
+
+	It(fmt.Sprintf("should return %d %s", status, http.StatusText(status)), func() {
+		Expect(testCtx.GetStatusCode()).To(Equal(status))
+		Expect(testCtx.GetHeaderValue(api.AuthorizationHeaderName)).To(BeEmpty())
+	})
+}
+
+func expectHTTPStatusWithAuthToken(testCtxPtr **TestContext, status int, expectedTokenPtr *string) {
+	var (
+		testCtx *TestContext
+	)
+
+	BeforeEach(func() {
+		testCtx = *testCtxPtr
+	})
+
+	It(fmt.Sprintf("should return %d %s", status, http.StatusText(status)), func() {
+		Expect(testCtx.GetStatusCode()).To(Equal(status))
+		Expect(
+			testCtx.GetHeaderValue(api.AuthorizationHeaderName),
+		).To(Equal(api.AuthorizationHeaderValuePrefix + *expectedTokenPtr))
+	})
+}

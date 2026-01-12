@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
@@ -30,22 +29,7 @@ var _ = Describe("GetBalance", func() {
 		testCtx.ProcessRequest()
 	})
 
-	Context("user is authenticated", func() {
-		var (
-			authToken string
-		)
-
-		BeforeEach(func() {
-			userLogin = exampleUserLogin
-			authToken = exampleValidAuthToken
-
-			testCtx.Request.SetAuthToken(authToken)
-
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(authToken)).
-				Return(domain.UserID(userLogin), nil)
-		})
-
+	withUserAuthenticatedContext(&testCtx, &testMocks, &userLogin, func() {
 		When("user requests balance", func() {
 			var (
 				expectedBalance api.Balance
@@ -65,10 +49,7 @@ var _ = Describe("GetBalance", func() {
 					Return(expectedBalance.Withdrawn, nil)
 			})
 
-			It("should return 200 OK with JSON-encoded balance", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
-				Expect(UnmashalBodyJSON[api.Balance](testCtx.GetBodyBytes())).To(Equal(expectedBalance))
-			})
+			expectHTTPStatusWithJSONBody(&testCtx, http.StatusOK, &expectedBalance)
 		})
 
 		DescribeTableSubtree("internal error happens",
@@ -77,10 +58,7 @@ var _ = Describe("GetBalance", func() {
 					setupMocks()
 				})
 
-				It("should return 500 Internal Server Error", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusInternalServerError)
 			},
 			Entry("when getting user's balance current value", func() {
 				testMocks.BalanceService.EXPECT().

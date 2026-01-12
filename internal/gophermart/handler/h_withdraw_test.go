@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
@@ -31,23 +30,11 @@ var _ = Describe("Withdraw", func() {
 		testCtx.ProcessRequest()
 	})
 
-	Context("user is authenticated", func() {
+	withUserAuthenticatedContext(&testCtx, &testMocks, &userLogin, func() {
 		var (
-			authToken          string
 			withdrawalRequest  api.WithdrawalRequest
 			mockWithdrawalCall *mocks.MockBalanceServicePayForOrderFromBalanceCall
 		)
-
-		BeforeEach(func() {
-			userLogin = exampleUserLogin
-			authToken = exampleValidAuthToken
-
-			testCtx.Request.SetAuthToken(authToken)
-
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(authToken)).
-				Return(domain.UserID(userLogin), nil)
-		})
 
 		Context("withdrawal request is correct", func() {
 			BeforeEach(func() {
@@ -67,10 +54,7 @@ var _ = Describe("Withdraw", func() {
 					mockWithdrawalCall.Return(nil)
 				})
 
-				It("should return 200 OK", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusOK)
 			})
 
 			When("user does not have enough funds to cover the request", func() {
@@ -78,10 +62,7 @@ var _ = Describe("Withdraw", func() {
 					mockWithdrawalCall.Return(domain.ErrBalanceNotEnoughFunds)
 				})
 
-				It("should return 402 Payment Required", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusPaymentRequired))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusPaymentRequired)
 			})
 		})
 
@@ -96,10 +77,7 @@ var _ = Describe("Withdraw", func() {
 					testCtx.Request.SetBodyJSON(withdrawalRequest)
 				})
 
-				It("should return 422 Unprocessable Entity", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusUnprocessableEntity))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusUnprocessableEntity)
 			},
 			Entry("empty order id", "", 12.3),
 			Entry("order id is not a number", "abcd123", 12.3),
@@ -126,10 +104,7 @@ var _ = Describe("Withdraw", func() {
 					setupMock()
 				})
 
-				It("should return 500 Internal Server Error", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusInternalServerError)
 			},
 			Entry("when order ID fails extra validation", func() {
 				mockWithdrawalCall.Return(domain.ErrOrderIDValidationFailed)

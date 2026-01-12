@@ -6,7 +6,6 @@ import (
 	"strconv"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
@@ -31,23 +30,11 @@ var _ = Describe("UploadOrder", func() {
 		testCtx.ProcessRequest()
 	})
 
-	Context("user is authenticated", func() {
+	withUserAuthenticatedContext(&testCtx, &testMocks, &userLogin, func() {
 		var (
-			authToken           string
 			orderID             int
 			mockCreateOrderCall *mocks.MockOrderServiceCreateOrderCall
 		)
-
-		BeforeEach(func() {
-			userLogin = exampleUserLogin
-			authToken = exampleValidAuthToken
-
-			testCtx.Request.SetAuthToken(authToken)
-
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(authToken)).
-				Return(domain.UserID(userLogin), nil)
-		})
 
 		Context("order ID is correct", func() {
 			BeforeEach(func() {
@@ -64,10 +51,7 @@ var _ = Describe("UploadOrder", func() {
 					mockCreateOrderCall.Return(nil)
 				})
 
-				It("should return 202 Accepted", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusAccepted))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusAccepted)
 			})
 
 			When("order ID has already been uploaded by the same user", func() {
@@ -80,10 +64,7 @@ var _ = Describe("UploadOrder", func() {
 					)
 				})
 
-				It("should return 200 OK", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusOK)
 			})
 
 			When("order ID has already been uploaded by the another user", func() {
@@ -96,10 +77,7 @@ var _ = Describe("UploadOrder", func() {
 					)
 				})
 
-				It("should return 409 Conflict", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusConflict))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusConflict)
 			})
 
 			When("order ID validation fails", func() {
@@ -107,10 +85,7 @@ var _ = Describe("UploadOrder", func() {
 					mockCreateOrderCall.Return(domain.ErrOrderIDValidationFailed)
 				})
 
-				It("should return 422 Unprocessable Entity", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusUnprocessableEntity))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusUnprocessableEntity)
 			})
 		})
 
@@ -120,10 +95,7 @@ var _ = Describe("UploadOrder", func() {
 					testCtx.Request.SetBodyPlain(orderIDStr)
 				})
 
-				It("should return 400 Bad Request", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusBadRequest))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusBadRequest)
 			},
 			Entry("empty order ID", ""),
 			Entry("order ID is not a number", "abcde12345"),
@@ -146,10 +118,7 @@ var _ = Describe("UploadOrder", func() {
 					setupMock()
 				})
 
-				It("should return 500 Internal Server Error", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusInternalServerError)
 			},
 			Entry("when creating new order", func() {
 				mockCreateOrderCall.Return(errors.New("oops"))

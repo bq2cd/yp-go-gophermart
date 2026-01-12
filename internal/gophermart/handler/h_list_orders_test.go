@@ -6,7 +6,6 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
@@ -31,22 +30,7 @@ var _ = Describe("ListOrders", func() {
 		testCtx.ProcessRequest()
 	})
 
-	Context("user is authenticated", func() {
-		var (
-			authToken string
-		)
-
-		BeforeEach(func() {
-			userLogin = exampleUserLogin
-			authToken = exampleValidAuthToken
-
-			testCtx.Request.SetAuthToken(authToken)
-
-			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(authToken)).
-				Return(domain.UserID(userLogin), nil)
-		})
-
+	withUserAuthenticatedContext(&testCtx, &testMocks, &userLogin, func() {
 		When("user has previously uploaded some orders", func() {
 			var (
 				now            time.Time
@@ -109,12 +93,7 @@ var _ = Describe("ListOrders", func() {
 					Return(map[domain.OrderID]float64{2039912: 99.9}, nil)
 			})
 
-			It("should return 200 OK and JSON-encoded array of orders", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusOK))
-				Expect(
-					UnmashalBodyJSON[[]api.Order](testCtx.GetBodyBytes()),
-				).To(Equal(expectedOrders))
-			})
+			expectHTTPStatusWithJSONBody(&testCtx, http.StatusOK, &expectedOrders)
 		})
 
 		When("user has never uploaded any orders", func() {
@@ -124,10 +103,7 @@ var _ = Describe("ListOrders", func() {
 					Return(nil, nil)
 			})
 
-			It("should return 204 No Content", func() {
-				Expect(testCtx.GetStatusCode()).To(Equal(http.StatusNoContent))
-				Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-			})
+			expectHTTPStatusWithEmptyBody(&testCtx, http.StatusNoContent)
 		})
 
 		DescribeTableSubtree("internal error happens",
@@ -136,10 +112,7 @@ var _ = Describe("ListOrders", func() {
 					setupMocks()
 				})
 
-				It("should return 500 Internal Server Error", func() {
-					Expect(testCtx.GetStatusCode()).To(Equal(http.StatusInternalServerError))
-					Expect(testCtx.GetBodyBytes()).To(BeEmpty())
-				})
+				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusInternalServerError)
 			},
 			Entry("when getting orders", func() {
 				testMocks.OrderService.EXPECT().

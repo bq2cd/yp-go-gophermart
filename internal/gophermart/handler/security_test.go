@@ -45,3 +45,39 @@ func testCasesForUnauthorizedUser(testCtxPtr **TestContext, testMocksPtr **TestM
 		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
 	)
 }
+
+func withUserAuthenticatedContext(
+	testCtxPtr **TestContext,
+	testMocksPtr **TestMocks,
+	userLoginPtr *string,
+	contextBody func(),
+) {
+	var (
+		testCtx   *TestContext
+		testMocks *TestMocks
+	)
+
+	BeforeEach(func() {
+		testCtx = *testCtxPtr
+		testMocks = *testMocksPtr
+	})
+
+	Context("user is authenticated", func() {
+		var (
+			authToken string
+		)
+
+		BeforeEach(func() {
+			*userLoginPtr = exampleUserLogin
+			authToken = exampleValidAuthToken
+
+			testCtx.Request.SetAuthToken(authToken)
+
+			testMocks.TokenService.EXPECT().
+				ValidateToken(domain.Token(authToken)).
+				Return(domain.UserID(*userLoginPtr), nil)
+		})
+
+		contextBody()
+	})
+}
