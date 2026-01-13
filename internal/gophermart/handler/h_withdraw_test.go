@@ -3,6 +3,7 @@ package handler_test
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	. "github.com/onsi/ginkgo/v2"
 
@@ -39,14 +40,14 @@ var _ = Describe("Withdraw", func() {
 		Context("withdrawal request is correct", func() {
 			BeforeEach(func() {
 				withdrawalRequest = api.WithdrawalRequest{
-					Order: "123456789",
+					Order: strconv.Itoa(exampleValidOrderID),
 					Sum:   12.3,
 				}
 
 				testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 				mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-					PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(123456789), 12.3)
+					PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 			})
 
 			When("user has enough funds to cover the request", func() {
@@ -82,9 +83,10 @@ var _ = Describe("Withdraw", func() {
 			Entry("empty order id", "", 12.3),
 			Entry("order id is not a number", "abcd123", 12.3),
 			Entry("order id is zero", "0", 12.3),
-			Entry("amount is zero", "123456789", 0.0),
-			Entry("amount is negative", "123456789", -3.3),
+			Entry("amount is zero", strconv.Itoa(exampleValidOrderID), 0.0),
+			Entry("amount is negative", strconv.Itoa(exampleValidOrderID), -3.3),
 			Entry("order id is zero and amount is zero", "0", 0.0),
+			Entry("order id fails Luhn's checksum validation", "123", 2.34),
 		)
 
 		DescribeTableSubtree(
@@ -92,23 +94,20 @@ var _ = Describe("Withdraw", func() {
 			func(setupMock func()) {
 				BeforeEach(func() {
 					withdrawalRequest = api.WithdrawalRequest{
-						Order: "123456789",
+						Order: strconv.Itoa(exampleValidOrderID),
 						Sum:   12.3,
 					}
 
 					testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 					mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-						PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(123456789), 12.3)
+						PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 
 					setupMock()
 				})
 
 				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusInternalServerError)
 			},
-			Entry("when order ID fails extra validation", func() {
-				mockWithdrawalCall.Return(domain.ErrOrderIDValidationFailed)
-			}),
 			Entry("when unexpected error happens", func() {
 				mockWithdrawalCall.Return(errors.New("oops"))
 			}),

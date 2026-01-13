@@ -38,7 +38,7 @@ var _ = Describe("UploadOrder", func() {
 
 		Context("order ID is correct", func() {
 			BeforeEach(func() {
-				orderID = 123456789
+				orderID = exampleValidOrderID
 
 				testCtx.Request.SetBodyPlain(strconv.Itoa(orderID))
 
@@ -67,7 +67,7 @@ var _ = Describe("UploadOrder", func() {
 				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusOK)
 			})
 
-			When("order ID has already been uploaded by the another user", func() {
+			When("order ID has already been uploaded by another user", func() {
 				BeforeEach(func() {
 					mockCreateOrderCall.Return(
 						&domain.OrderIDAlreadyExistsError{
@@ -80,13 +80,14 @@ var _ = Describe("UploadOrder", func() {
 				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusConflict)
 			})
 
-			When("order ID validation fails", func() {
-				BeforeEach(func() {
-					mockCreateOrderCall.Return(domain.ErrOrderIDValidationFailed)
-				})
+		})
 
-				expectHTTPStatusWithEmptyBody(&testCtx, http.StatusUnprocessableEntity)
+		When("order ID fails Luhn's checksum validation", func() {
+			BeforeEach(func() {
+				testCtx.Request.SetBodyPlain("123")
 			})
+
+			expectHTTPStatusWithEmptyBody(&testCtx, http.StatusUnprocessableEntity)
 		})
 
 		DescribeTableSubtree("order ID contains errors",
@@ -108,7 +109,7 @@ var _ = Describe("UploadOrder", func() {
 			"internal error happens",
 			func(setupMock func()) {
 				BeforeEach(func() {
-					orderID = 9912345
+					orderID = exampleValidOrderID
 
 					testCtx.Request.SetBodyPlain(strconv.Itoa(orderID))
 

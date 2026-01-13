@@ -18,16 +18,12 @@ func (h *Handler) UploadOrder(operation *api.OperationUploadOrder) {
 }
 
 func (h *Handler) processUploadOrder(operation *api.OperationUploadOrder, userID domain.UserID) {
-	req, err := operation.GetRequest()
-	if err != nil {
-		operation.RespondBadRequest()
-
+	orderID, ok := h.processUploadOrderRequest(operation)
+	if !ok {
 		return
 	}
 
-	orderID := domain.OrderID(req)
-
-	err = h.orderService.CreateOrder(userID, orderID)
+	err := h.orderService.CreateOrder(userID, orderID)
 	if err != nil {
 		h.processUploadOrderError(operation, userID, err)
 
@@ -35,6 +31,27 @@ func (h *Handler) processUploadOrder(operation *api.OperationUploadOrder, userID
 	}
 
 	operation.RespondAccepted()
+}
+
+func (h *Handler) processUploadOrderRequest(operation *api.OperationUploadOrder) (domain.OrderID, bool) {
+	req, err := operation.GetRequest()
+	if err != nil {
+		h.processUploadOrderRequestError(operation, err)
+
+		return domain.OrderID(0), false
+	}
+
+	return domain.OrderID(req), true
+}
+
+func (h *Handler) processUploadOrderRequestError(operation *api.OperationUploadOrder, err error) {
+	if errors.Is(err, api.ErrOrderIDLuhnChecksumMismatch) {
+		operation.RespondUnprocessableEntity()
+
+		return
+	}
+
+	operation.RespondBadRequest()
 }
 
 func (h *Handler) processUploadOrderError(operation *api.OperationUploadOrder, userID domain.UserID, err error) {
@@ -46,12 +63,6 @@ func (h *Handler) processUploadOrderError(operation *api.OperationUploadOrder, u
 		} else {
 			operation.RespondConflict()
 		}
-
-		return
-	}
-
-	if errors.Is(err, domain.ErrOrderIDValidationFailed) {
-		operation.RespondUnprocessableEntity()
 
 		return
 	}

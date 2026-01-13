@@ -1,7 +1,10 @@
 package api
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/bq2cd/yp-go-gophermart/pkg/luhn"
 )
 
 // OrderID represents the ID of an order.
@@ -36,6 +39,11 @@ type Order struct {
 func (oid OrderID) Validate() error {
 	if oid == 0 {
 		return ErrOrderIDMustBeGreaterThanZero
+	}
+
+	err := luhn.Validate(uint64(oid))
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrOrderIDLuhnChecksumMismatch, err)
 	}
 
 	return nil

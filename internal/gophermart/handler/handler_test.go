@@ -28,6 +28,7 @@ const (
 	exampleUserPassword     = "password1"
 	exampleValidAuthToken   = "some-valid-auth-token"
 	exampleInvalidAuthToken = "some-random-string"
+	exampleValidOrderID     = 1234567897 // passes Luhn's validation
 )
 
 /////////////////////////////////////////////////////////////////////////////////
