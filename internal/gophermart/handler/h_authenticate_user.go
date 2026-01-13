@@ -9,18 +9,14 @@ import (
 
 // AuthenticateUser implements [api.OperationAuthenticateUser].
 func (h *Handler) AuthenticateUser(operation *api.OperationAuthenticateUser) {
-	req, err := operation.GetRequest()
-	if err != nil {
-		operation.RespondBadRequest()
-
+	userID, passwordPlain, ok := processUserRegistrationOrAuthenticationRequest(operation)
+	if !ok {
 		return
 	}
 
-	userID := domain.UserID(req.Login)
-
-	err = h.userService.Authenticate(userID, domain.PasswordPlain(req.Password))
+	err := h.userService.Authenticate(userID, passwordPlain)
 	if err != nil {
-		h.sendAuthenticateUserError(operation, err)
+		h.processAuthenticateUserError(operation, err)
 
 		return
 	}
@@ -28,7 +24,7 @@ func (h *Handler) AuthenticateUser(operation *api.OperationAuthenticateUser) {
 	issueUserToken(h.tokenService, operation, userID)
 }
 
-func (h *Handler) sendAuthenticateUserError(operation *api.OperationAuthenticateUser, err error) {
+func (h *Handler) processAuthenticateUserError(operation *api.OperationAuthenticateUser, err error) {
 	if errors.Is(err, domain.ErrUserAuthenticationFailed) {
 		operation.RespondUnauthorized()
 

@@ -9,18 +9,14 @@ import (
 
 // RegisterUser implements [api.OperationRegisterUser].
 func (h *Handler) RegisterUser(operation *api.OperationRegisterUser) {
-	req, err := operation.GetRequest()
-	if err != nil {
-		operation.RespondBadRequest()
-
+	userID, passwordPlain, ok := processUserRegistrationOrAuthenticationRequest(operation)
+	if !ok {
 		return
 	}
 
-	userID := domain.UserID(req.Login)
-
-	err = h.userService.Register(userID, domain.PasswordPlain(req.Password))
+	err := h.userService.Register(userID, passwordPlain)
 	if err != nil {
-		h.sendRegisterUserError(operation, err)
+		h.processRegisterUserError(operation, err)
 
 		return
 	}
@@ -28,7 +24,7 @@ func (h *Handler) RegisterUser(operation *api.OperationRegisterUser) {
 	issueUserToken(h.tokenService, operation, userID)
 }
 
-func (h *Handler) sendRegisterUserError(operation *api.OperationRegisterUser, err error) {
+func (h *Handler) processRegisterUserError(operation *api.OperationRegisterUser, err error) {
 	if errors.Is(err, domain.ErrUserIDConflict) {
 		operation.RespondConflict()
 

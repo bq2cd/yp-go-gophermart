@@ -10,19 +10,23 @@ import (
 
 // Withdraw implements [api.OperationWithdraw].
 func (h *Handler) Withdraw(operation *api.OperationWithdraw) {
-	userID, hasUserID := h.ensureUserID(operation)
-	if !hasUserID {
+	userID, ok := h.ensureUserID(operation)
+	if !ok {
 		return
 	}
 
-	orderID, amount, ok := h.getWithdrawOrderAndAmount(operation)
+	h.processWithdraw(operation, userID)
+}
+
+func (h *Handler) processWithdraw(operation *api.OperationWithdraw, userID domain.UserID) {
+	orderID, amount, ok := h.processWithdrawRequest(operation)
 	if !ok {
 		return
 	}
 
 	err := h.balanceService.PayForOrderFromBalance(userID, orderID, amount)
 	if err != nil {
-		h.sendWithdrawError(operation, err)
+		h.processWithdrawError(operation, err)
 
 		return
 	}
@@ -30,7 +34,7 @@ func (h *Handler) Withdraw(operation *api.OperationWithdraw) {
 	operation.RespondOK()
 }
 
-func (h *Handler) getWithdrawOrderAndAmount(
+func (h *Handler) processWithdrawRequest(
 	operation *api.OperationWithdraw,
 ) (domain.OrderID, float64, bool) {
 	req, err := operation.GetRequest()
@@ -50,7 +54,7 @@ func (h *Handler) getWithdrawOrderAndAmount(
 	return domain.OrderID(orderNum), req.Sum, true
 }
 
-func (h *Handler) sendWithdrawError(operation *api.OperationWithdraw, err error) {
+func (h *Handler) processWithdrawError(operation *api.OperationWithdraw, err error) {
 	if errors.Is(err, domain.ErrBalanceNotEnoughFunds) {
 		operation.RespondPaymentRequired()
 

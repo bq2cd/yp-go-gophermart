@@ -14,9 +14,13 @@ func (h *Handler) ListOrders(operation *api.OperationListOrders) {
 		return
 	}
 
+	h.processListOrders(operation, userID)
+}
+
+func (h *Handler) processListOrders(operation *api.OperationListOrders, userID domain.UserID) {
 	orders, err := h.orderService.GetOrders(userID)
 	if err != nil {
-		h.sendListOrdersError(operation, err)
+		h.processListOrdersError(operation, err)
 
 		return
 	}
@@ -27,27 +31,40 @@ func (h *Handler) ListOrders(operation *api.OperationListOrders) {
 		return
 	}
 
-	h.sendListOrdersOK(operation, userID, orders)
+	h.createListOrdersResponse(operation, userID, orders)
 }
 
-func (h *Handler) sendListOrdersError(operation *api.OperationListOrders, _ error) {
+func (h *Handler) processListOrdersError(operation *api.OperationListOrders, _ error) {
 	operation.RespondServerError()
 }
 
-func (h *Handler) sendListOrdersOK(operation *api.OperationListOrders, userID domain.UserID, orders []domain.Order) {
+func (h *Handler) createListOrdersResponse(
+	operation *api.OperationListOrders,
+	userID domain.UserID,
+	orders []domain.Order,
+) {
+	accruals, err := h.orderService.GetAccruals(userID, getOrderIDList(orders))
+	if err != nil {
+		h.processListOrdersError(operation, err)
+
+		return
+	}
+
+	operation.RespondOK(convertOrdersToAPIResponse(orders, accruals))
+}
+
+func getOrderIDList(orders []domain.Order) []domain.OrderID {
 	orderIDs := make([]domain.OrderID, 0, len(orders))
 	for _, order := range orders {
 		orderIDs = append(orderIDs, order.ID)
 	}
 
-	accruals, err := h.orderService.GetAccruals(userID, orderIDs)
-	if err != nil {
-		h.sendListOrdersError(operation, err)
+	return orderIDs
+}
 
-		return
-	}
-
+func convertOrdersToAPIResponse(orders []domain.Order, accruals map[domain.OrderID]float64) []api.Order {
 	apiOrders := make([]api.Order, 0, len(orders))
+
 	for _, order := range orders {
 		apiOrders = append(apiOrders, api.Order{
 			Accrual:    accruals[order.ID],
@@ -57,7 +74,7 @@ func (h *Handler) sendListOrdersOK(operation *api.OperationListOrders, userID do
 		})
 	}
 
-	operation.RespondOK(apiOrders)
+	return apiOrders
 }
 
 func convertOrderStatus(status domain.OrderStatus) api.OrderStatus {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
 )
 
@@ -11,16 +12,20 @@ func (h *Handler) GetBalance(operation *api.OperationGetBalance) {
 		return
 	}
 
+	h.processGetBalance(operation, userID)
+}
+
+func (h *Handler) processGetBalance(operation *api.OperationGetBalance, userID domain.UserID) {
 	balance, err := h.balanceService.GetBalance(userID)
 	if err != nil {
-		h.sendGetBalanceError(operation, err)
+		h.processGetBalanceError(operation, err)
 
 		return
 	}
 
 	withdrawn, err := h.balanceService.GetTotalAmountWithdrawn(userID)
 	if err != nil {
-		h.sendGetBalanceError(operation, err)
+		h.processGetBalanceError(operation, err)
 
 		return
 	}
@@ -31,6 +36,6 @@ func (h *Handler) GetBalance(operation *api.OperationGetBalance) {
 	})
 }
 
-func (h *Handler) sendGetBalanceError(operation *api.OperationGetBalance, _ error) {
+func (h *Handler) processGetBalanceError(operation *api.OperationGetBalance, _ error) {
 	operation.RespondServerError()
 }
