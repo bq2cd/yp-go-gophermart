@@ -1,5 +1,10 @@
 package domain
 
+const (
+	// TokenEmptyValue represents an empty value for [Token].
+	TokenEmptyValue Token = ""
+)
+
 // Token represents a JWT token issued for an authenticated user.
 type Token string
 
