@@ -18,7 +18,7 @@ func (h *Handler) ListOrders(operation *api.OperationListOrders) {
 }
 
 func (h *Handler) processListOrders(operation *api.OperationListOrders, userID domain.UserID) {
-	orders, err := h.orderService.GetOrders(userID)
+	orders, err := h.orderService.GetOrders(operation.Context(), userID)
 	if err != nil {
 		h.processListOrdersError(operation, err)
 
@@ -43,7 +43,7 @@ func (h *Handler) createListOrdersResponse(
 	userID domain.UserID,
 	orders []domain.Order,
 ) {
-	accruals, err := h.orderService.GetAccruals(userID, getOrderIDList(orders))
+	accruals, err := h.orderService.GetAccruals(operation.Context(), userID, getOrderIDList(orders))
 	if err != nil {
 		h.processListOrdersError(operation, err)
 

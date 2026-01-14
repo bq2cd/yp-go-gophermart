@@ -24,7 +24,7 @@ func (h *Handler) processWithdraw(operation *api.OperationWithdraw, userID domai
 		return
 	}
 
-	err := h.balanceService.PayForOrderFromBalance(userID, orderID, amount)
+	err := h.balanceService.PayForOrderFromBalance(operation.Context(), userID, orderID, amount)
 	if err != nil {
 		h.processWithdrawError(operation, err)
 

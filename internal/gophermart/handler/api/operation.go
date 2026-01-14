@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -23,6 +24,11 @@ func (op *operationCtx) RespondBadRequest() {
 // RespondServerError aborts request processing and returns '500 Internal Server Error'.
 func (op *operationCtx) RespondServerError() {
 	op.ginCtx.AbortWithStatus(http.StatusInternalServerError)
+}
+
+// Context returns [context.Context] instance corresponding to the current HTTP request.
+func (op *operationCtx) Context() context.Context {
+	return op.ginCtx.Request.Context()
 }
 
 func (op *operationCtx) setGinContext(c *gin.Context) {

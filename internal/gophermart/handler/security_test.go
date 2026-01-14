@@ -39,7 +39,7 @@ func testCasesForUnauthorizedUser(testCtxPtr **TestContext, testMocksPtr **TestM
 		},
 		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
 			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(exampleInvalidAuthToken)).
+				ValidateToken(mockCtx(), domain.Token(exampleInvalidAuthToken)).
 				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
 		}),
 		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
@@ -74,7 +74,7 @@ func withUserAuthenticatedContext(
 			testCtx.Request.SetAuthToken(authToken)
 
 			testMocks.TokenService.EXPECT().
-				ValidateToken(domain.Token(authToken)).
+				ValidateToken(mockCtx(), domain.Token(authToken)).
 				Return(domain.UserID(*userLoginPtr), nil)
 		})
 

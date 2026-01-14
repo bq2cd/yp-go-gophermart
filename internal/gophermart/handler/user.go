@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
 )
@@ -29,10 +31,11 @@ func processUserRegistrationOrAuthenticationRequest(
 type userAuthenticatedOperation interface {
 	RespondServerError()
 	RespondOK(resp api.UserAuthenticated)
+	Context() context.Context
 }
 
 func issueUserToken(tokenService TokenService, operation userAuthenticatedOperation, userID domain.UserID) {
-	token, err := tokenService.IssueToken(userID)
+	token, err := tokenService.IssueToken(operation.Context(), userID)
 	if err != nil {
 		operation.RespondServerError()
 

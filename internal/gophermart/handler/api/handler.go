@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -28,7 +29,7 @@ type Handler interface {
 // SecurityHandler defines a method to validate JWT tokens extracted from [AuthorizationHeaderName].
 // This handler is attached to a Gin router group to protect sensitive API operations.
 type SecurityHandler interface {
-	JWTAuth(token string) (UserID, error)
+	JWTAuth(ctx context.Context, token string) (UserID, error)
 }
 
 type ginContextSetter[T any] interface {
@@ -48,7 +49,7 @@ func getGinSecurityHandler(handler SecurityHandler) gin.HandlerFunc {
 
 		token := strings.TrimPrefix(header, AuthorizationHeaderValuePrefix)
 
-		userID, err := handler.JWTAuth(token)
+		userID, err := handler.JWTAuth(ginCtx.Request.Context(), token)
 		if err != nil {
 			_ = ginCtx.AbortWithError(http.StatusUnauthorized, err)
 		}

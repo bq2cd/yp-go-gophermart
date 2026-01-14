@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	domain "github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -41,17 +42,17 @@ func (m *MockOrderService) EXPECT() *MockOrderServiceMockRecorder {
 }
 
 // CreateOrder mocks base method.
-func (m *MockOrderService) CreateOrder(userID domain.UserID, orderID domain.OrderID) error {
+func (m *MockOrderService) CreateOrder(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrder", userID, orderID)
+	ret := m.ctrl.Call(m, "CreateOrder", ctx, userID, orderID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // CreateOrder indicates an expected call of CreateOrder.
-func (mr *MockOrderServiceMockRecorder) CreateOrder(userID, orderID any) *MockOrderServiceCreateOrderCall {
+func (mr *MockOrderServiceMockRecorder) CreateOrder(ctx, userID, orderID any) *MockOrderServiceCreateOrderCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderService)(nil).CreateOrder), userID, orderID)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrder", reflect.TypeOf((*MockOrderService)(nil).CreateOrder), ctx, userID, orderID)
 	return &MockOrderServiceCreateOrderCall{Call: call}
 }
 
@@ -67,30 +68,30 @@ func (c *MockOrderServiceCreateOrderCall) Return(arg0 error) *MockOrderServiceCr
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOrderServiceCreateOrderCall) Do(f func(domain.UserID, domain.OrderID) error) *MockOrderServiceCreateOrderCall {
+func (c *MockOrderServiceCreateOrderCall) Do(f func(context.Context, domain.UserID, domain.OrderID) error) *MockOrderServiceCreateOrderCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOrderServiceCreateOrderCall) DoAndReturn(f func(domain.UserID, domain.OrderID) error) *MockOrderServiceCreateOrderCall {
+func (c *MockOrderServiceCreateOrderCall) DoAndReturn(f func(context.Context, domain.UserID, domain.OrderID) error) *MockOrderServiceCreateOrderCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetAccruals mocks base method.
-func (m *MockOrderService) GetAccruals(userID domain.UserID, orderIDs []domain.OrderID) (map[domain.OrderID]float64, error) {
+func (m *MockOrderService) GetAccruals(ctx context.Context, userID domain.UserID, orderIDs []domain.OrderID) (map[domain.OrderID]float64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAccruals", userID, orderIDs)
+	ret := m.ctrl.Call(m, "GetAccruals", ctx, userID, orderIDs)
 	ret0, _ := ret[0].(map[domain.OrderID]float64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAccruals indicates an expected call of GetAccruals.
-func (mr *MockOrderServiceMockRecorder) GetAccruals(userID, orderIDs any) *MockOrderServiceGetAccrualsCall {
+func (mr *MockOrderServiceMockRecorder) GetAccruals(ctx, userID, orderIDs any) *MockOrderServiceGetAccrualsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccruals", reflect.TypeOf((*MockOrderService)(nil).GetAccruals), userID, orderIDs)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccruals", reflect.TypeOf((*MockOrderService)(nil).GetAccruals), ctx, userID, orderIDs)
 	return &MockOrderServiceGetAccrualsCall{Call: call}
 }
 
@@ -106,30 +107,30 @@ func (c *MockOrderServiceGetAccrualsCall) Return(arg0 map[domain.OrderID]float64
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOrderServiceGetAccrualsCall) Do(f func(domain.UserID, []domain.OrderID) (map[domain.OrderID]float64, error)) *MockOrderServiceGetAccrualsCall {
+func (c *MockOrderServiceGetAccrualsCall) Do(f func(context.Context, domain.UserID, []domain.OrderID) (map[domain.OrderID]float64, error)) *MockOrderServiceGetAccrualsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOrderServiceGetAccrualsCall) DoAndReturn(f func(domain.UserID, []domain.OrderID) (map[domain.OrderID]float64, error)) *MockOrderServiceGetAccrualsCall {
+func (c *MockOrderServiceGetAccrualsCall) DoAndReturn(f func(context.Context, domain.UserID, []domain.OrderID) (map[domain.OrderID]float64, error)) *MockOrderServiceGetAccrualsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // GetOrders mocks base method.
-func (m *MockOrderService) GetOrders(userID domain.UserID) ([]domain.Order, error) {
+func (m *MockOrderService) GetOrders(ctx context.Context, userID domain.UserID) ([]domain.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetOrders", userID)
+	ret := m.ctrl.Call(m, "GetOrders", ctx, userID)
 	ret0, _ := ret[0].([]domain.Order)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetOrders indicates an expected call of GetOrders.
-func (mr *MockOrderServiceMockRecorder) GetOrders(userID any) *MockOrderServiceGetOrdersCall {
+func (mr *MockOrderServiceMockRecorder) GetOrders(ctx, userID any) *MockOrderServiceGetOrdersCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrders", reflect.TypeOf((*MockOrderService)(nil).GetOrders), userID)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrders", reflect.TypeOf((*MockOrderService)(nil).GetOrders), ctx, userID)
 	return &MockOrderServiceGetOrdersCall{Call: call}
 }
 
@@ -145,13 +146,13 @@ func (c *MockOrderServiceGetOrdersCall) Return(arg0 []domain.Order, arg1 error) 
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOrderServiceGetOrdersCall) Do(f func(domain.UserID) ([]domain.Order, error)) *MockOrderServiceGetOrdersCall {
+func (c *MockOrderServiceGetOrdersCall) Do(f func(context.Context, domain.UserID) ([]domain.Order, error)) *MockOrderServiceGetOrdersCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOrderServiceGetOrdersCall) DoAndReturn(f func(domain.UserID) ([]domain.Order, error)) *MockOrderServiceGetOrdersCall {
+func (c *MockOrderServiceGetOrdersCall) DoAndReturn(f func(context.Context, domain.UserID) ([]domain.Order, error)) *MockOrderServiceGetOrdersCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

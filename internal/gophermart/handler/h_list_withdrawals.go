@@ -18,7 +18,7 @@ func (h *Handler) ListWithdrawals(operation *api.OperationListWithdrawals) {
 }
 
 func (h *Handler) processListWithdrawals(operation *api.OperationListWithdrawals, userID domain.UserID) {
-	withdrawals, err := h.balanceService.GetWithdrawalTransactions(userID)
+	withdrawals, err := h.balanceService.GetWithdrawalTransactions(operation.Context(), userID)
 	if err != nil {
 		h.processListWithdrawalsError(operation, err)
 
