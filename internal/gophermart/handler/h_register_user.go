@@ -14,7 +14,7 @@ func (h *Handler) RegisterUser(operation *api.OperationRegisterUser) {
 		return
 	}
 
-	err := h.userService.Register(userID, passwordPlain)
+	err := h.userService.Register(operation.Context(), userID, passwordPlain)
 	if err != nil {
 		h.processRegisterUserError(operation, err)
 

@@ -16,14 +16,14 @@ func (h *Handler) GetBalance(operation *api.OperationGetBalance) {
 }
 
 func (h *Handler) processGetBalance(operation *api.OperationGetBalance, userID domain.UserID) {
-	balance, err := h.balanceService.GetBalance(userID)
+	balance, err := h.balanceService.GetBalance(operation.Context(), userID)
 	if err != nil {
 		h.processGetBalanceError(operation, err)
 
 		return
 	}
 
-	withdrawn, err := h.balanceService.GetTotalAmountWithdrawn(userID)
+	withdrawn, err := h.balanceService.GetTotalAmountWithdrawn(operation.Context(), userID)
 	if err != nil {
 		h.processGetBalanceError(operation, err)
 

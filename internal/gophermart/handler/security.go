@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -23,8 +24,8 @@ func NewSecurityHandler(tokenService TokenService) *SecurityHandler {
 }
 
 // JWTAuth performs authentication based on provided JWT token.
-func (sh *SecurityHandler) JWTAuth(token string) (api.UserID, error) {
-	userID, err := sh.tokenService.ValidateToken(domain.Token(token))
+func (sh *SecurityHandler) JWTAuth(ctx context.Context, token string) (api.UserID, error) {
+	userID, err := sh.tokenService.ValidateToken(ctx, domain.Token(token))
 	if err != nil {
 		return api.UserIDEmptyValue, fmt.Errorf("%w: %w", ErrAuthTokenInvalid, err)
 	}

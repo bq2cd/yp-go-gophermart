@@ -53,7 +53,7 @@ var _ = Describe("ListWithdrawals", func() {
 				}
 
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(domain.UserID(userLogin)).
+					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
 					Return([]domain.WithdrawalTransaction{
 						{
 							OrderID:     domain.OrderID(12345),
@@ -74,7 +74,7 @@ var _ = Describe("ListWithdrawals", func() {
 		When("user has never made any withdrawals", func() {
 			BeforeEach(func() {
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(domain.UserID(userLogin)).
+					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
 					Return(nil, nil)
 			})
 
@@ -91,7 +91,7 @@ var _ = Describe("ListWithdrawals", func() {
 			},
 			Entry("when getting withdrawal transactions", func() {
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(domain.UserID(userLogin)).
+					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
 					Return(nil, errors.New("error getting transactions"))
 			}),
 		)

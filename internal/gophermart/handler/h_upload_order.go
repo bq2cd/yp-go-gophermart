@@ -23,7 +23,7 @@ func (h *Handler) processUploadOrder(operation *api.OperationUploadOrder, userID
 		return
 	}
 
-	err := h.orderService.CreateOrder(userID, orderID)
+	err := h.orderService.CreateOrder(operation.Context(), userID, orderID)
 	if err != nil {
 		h.processUploadOrderError(operation, userID, err)
 

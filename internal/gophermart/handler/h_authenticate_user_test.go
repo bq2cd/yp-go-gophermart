@@ -31,7 +31,7 @@ var _ = Describe("AuthenticateUser", func() {
 
 	getUserServiceMockCall := func(credentials api.LoginPassword) *mocks.MockUserServiceAuthenticateCall {
 		return testMocks.UserService.EXPECT().
-			Authenticate(domain.UserID(credentials.Login), domain.PasswordPlain(credentials.Password))
+			Authenticate(mockCtx(), domain.UserID(credentials.Login), domain.PasswordPlain(credentials.Password))
 	}
 
 	testCasesForUserRegistrationAndAuthentication(&testCtx, &testMocks, getUserServiceMockCall)

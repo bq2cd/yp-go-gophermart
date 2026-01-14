@@ -43,7 +43,7 @@ var _ = Describe("UploadOrder", func() {
 				testCtx.Request.SetBodyPlain(strconv.Itoa(orderID))
 
 				mockCreateOrderCall = testMocks.OrderService.EXPECT().
-					CreateOrder(domain.UserID(userLogin), domain.OrderID(orderID))
+					CreateOrder(mockCtx(), domain.UserID(userLogin), domain.OrderID(orderID))
 			})
 
 			When("order ID is brand new", func() {
@@ -114,7 +114,7 @@ var _ = Describe("UploadOrder", func() {
 					testCtx.Request.SetBodyPlain(strconv.Itoa(orderID))
 
 					mockCreateOrderCall = testMocks.OrderService.EXPECT().
-						CreateOrder(domain.UserID(userLogin), domain.OrderID(orderID))
+						CreateOrder(mockCtx(), domain.UserID(userLogin), domain.OrderID(orderID))
 
 					setupMock()
 				})

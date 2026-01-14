@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	domain "github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -41,17 +42,17 @@ func (m *MockUserService) EXPECT() *MockUserServiceMockRecorder {
 }
 
 // Authenticate mocks base method.
-func (m *MockUserService) Authenticate(userID domain.UserID, passwordPlain domain.PasswordPlain) error {
+func (m *MockUserService) Authenticate(ctx context.Context, userID domain.UserID, passwordPlain domain.PasswordPlain) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Authenticate", userID, passwordPlain)
+	ret := m.ctrl.Call(m, "Authenticate", ctx, userID, passwordPlain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Authenticate indicates an expected call of Authenticate.
-func (mr *MockUserServiceMockRecorder) Authenticate(userID, passwordPlain any) *MockUserServiceAuthenticateCall {
+func (mr *MockUserServiceMockRecorder) Authenticate(ctx, userID, passwordPlain any) *MockUserServiceAuthenticateCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockUserService)(nil).Authenticate), userID, passwordPlain)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authenticate", reflect.TypeOf((*MockUserService)(nil).Authenticate), ctx, userID, passwordPlain)
 	return &MockUserServiceAuthenticateCall{Call: call}
 }
 
@@ -67,29 +68,29 @@ func (c *MockUserServiceAuthenticateCall) Return(arg0 error) *MockUserServiceAut
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockUserServiceAuthenticateCall) Do(f func(domain.UserID, domain.PasswordPlain) error) *MockUserServiceAuthenticateCall {
+func (c *MockUserServiceAuthenticateCall) Do(f func(context.Context, domain.UserID, domain.PasswordPlain) error) *MockUserServiceAuthenticateCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockUserServiceAuthenticateCall) DoAndReturn(f func(domain.UserID, domain.PasswordPlain) error) *MockUserServiceAuthenticateCall {
+func (c *MockUserServiceAuthenticateCall) DoAndReturn(f func(context.Context, domain.UserID, domain.PasswordPlain) error) *MockUserServiceAuthenticateCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // Register mocks base method.
-func (m *MockUserService) Register(userID domain.UserID, passwordPlain domain.PasswordPlain) error {
+func (m *MockUserService) Register(ctx context.Context, userID domain.UserID, passwordPlain domain.PasswordPlain) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Register", userID, passwordPlain)
+	ret := m.ctrl.Call(m, "Register", ctx, userID, passwordPlain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Register indicates an expected call of Register.
-func (mr *MockUserServiceMockRecorder) Register(userID, passwordPlain any) *MockUserServiceRegisterCall {
+func (mr *MockUserServiceMockRecorder) Register(ctx, userID, passwordPlain any) *MockUserServiceRegisterCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockUserService)(nil).Register), userID, passwordPlain)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockUserService)(nil).Register), ctx, userID, passwordPlain)
 	return &MockUserServiceRegisterCall{Call: call}
 }
 
@@ -105,13 +106,13 @@ func (c *MockUserServiceRegisterCall) Return(arg0 error) *MockUserServiceRegiste
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockUserServiceRegisterCall) Do(f func(domain.UserID, domain.PasswordPlain) error) *MockUserServiceRegisterCall {
+func (c *MockUserServiceRegisterCall) Do(f func(context.Context, domain.UserID, domain.PasswordPlain) error) *MockUserServiceRegisterCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockUserServiceRegisterCall) DoAndReturn(f func(domain.UserID, domain.PasswordPlain) error) *MockUserServiceRegisterCall {
+func (c *MockUserServiceRegisterCall) DoAndReturn(f func(context.Context, domain.UserID, domain.PasswordPlain) error) *MockUserServiceRegisterCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

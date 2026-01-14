@@ -48,7 +48,7 @@ func testCasesForUserRegistrationAndAuthentication[T mockCallErrorReturner[T]](
 
 			getUserServiceMockCall(loginPassword).Return(nil)
 			testMocks.TokenService.EXPECT().
-				IssueToken(domain.UserID(loginPassword.Login)).
+				IssueToken(mockCtx(), domain.UserID(loginPassword.Login)).
 				Return(domain.Token(expectedToken), nil)
 		})
 
@@ -96,7 +96,7 @@ func testCasesForUserRegistrationAndAuthentication[T mockCallErrorReturner[T]](
 		}),
 		Entry("when issuing a token", func() {
 			getUserServiceMockCall(loginPassword).Return(nil)
-			testMocks.TokenService.EXPECT().IssueToken(domain.UserID(loginPassword.Login)).
+			testMocks.TokenService.EXPECT().IssueToken(mockCtx(), domain.UserID(loginPassword.Login)).
 				Return(domain.Token(""), errors.New("cannot issue token"))
 		}),
 	)

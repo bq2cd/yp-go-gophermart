@@ -14,7 +14,7 @@ func (h *Handler) AuthenticateUser(operation *api.OperationAuthenticateUser) {
 		return
 	}
 
-	err := h.userService.Authenticate(userID, passwordPlain)
+	err := h.userService.Authenticate(operation.Context(), userID, passwordPlain)
 	if err != nil {
 		h.processAuthenticateUserError(operation, err)
 

@@ -47,7 +47,7 @@ var _ = Describe("Withdraw", func() {
 				testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 				mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-					PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
+					PayForOrderFromBalance(mockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 			})
 
 			When("user has enough funds to cover the request", func() {
@@ -101,7 +101,7 @@ var _ = Describe("Withdraw", func() {
 					testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 					mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-						PayForOrderFromBalance(domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
+						PayForOrderFromBalance(mockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 
 					setupMock()
 				})

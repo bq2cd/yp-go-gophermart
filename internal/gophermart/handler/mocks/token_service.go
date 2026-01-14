@@ -10,6 +10,7 @@
 package mocks
 
 import (
+	context "context"
 	reflect "reflect"
 
 	domain "github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -41,18 +42,18 @@ func (m *MockTokenService) EXPECT() *MockTokenServiceMockRecorder {
 }
 
 // IssueToken mocks base method.
-func (m *MockTokenService) IssueToken(userID domain.UserID) (domain.Token, error) {
+func (m *MockTokenService) IssueToken(ctx context.Context, userID domain.UserID) (domain.Token, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IssueToken", userID)
+	ret := m.ctrl.Call(m, "IssueToken", ctx, userID)
 	ret0, _ := ret[0].(domain.Token)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // IssueToken indicates an expected call of IssueToken.
-func (mr *MockTokenServiceMockRecorder) IssueToken(userID any) *MockTokenServiceIssueTokenCall {
+func (mr *MockTokenServiceMockRecorder) IssueToken(ctx, userID any) *MockTokenServiceIssueTokenCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IssueToken", reflect.TypeOf((*MockTokenService)(nil).IssueToken), userID)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IssueToken", reflect.TypeOf((*MockTokenService)(nil).IssueToken), ctx, userID)
 	return &MockTokenServiceIssueTokenCall{Call: call}
 }
 
@@ -68,30 +69,30 @@ func (c *MockTokenServiceIssueTokenCall) Return(arg0 domain.Token, arg1 error) *
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockTokenServiceIssueTokenCall) Do(f func(domain.UserID) (domain.Token, error)) *MockTokenServiceIssueTokenCall {
+func (c *MockTokenServiceIssueTokenCall) Do(f func(context.Context, domain.UserID) (domain.Token, error)) *MockTokenServiceIssueTokenCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockTokenServiceIssueTokenCall) DoAndReturn(f func(domain.UserID) (domain.Token, error)) *MockTokenServiceIssueTokenCall {
+func (c *MockTokenServiceIssueTokenCall) DoAndReturn(f func(context.Context, domain.UserID) (domain.Token, error)) *MockTokenServiceIssueTokenCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
 
 // ValidateToken mocks base method.
-func (m *MockTokenService) ValidateToken(token domain.Token) (domain.UserID, error) {
+func (m *MockTokenService) ValidateToken(ctx context.Context, token domain.Token) (domain.UserID, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ValidateToken", token)
+	ret := m.ctrl.Call(m, "ValidateToken", ctx, token)
 	ret0, _ := ret[0].(domain.UserID)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ValidateToken indicates an expected call of ValidateToken.
-func (mr *MockTokenServiceMockRecorder) ValidateToken(token any) *MockTokenServiceValidateTokenCall {
+func (mr *MockTokenServiceMockRecorder) ValidateToken(ctx, token any) *MockTokenServiceValidateTokenCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockTokenService)(nil).ValidateToken), token)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ValidateToken", reflect.TypeOf((*MockTokenService)(nil).ValidateToken), ctx, token)
 	return &MockTokenServiceValidateTokenCall{Call: call}
 }
 
@@ -107,13 +108,13 @@ func (c *MockTokenServiceValidateTokenCall) Return(arg0 domain.UserID, arg1 erro
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockTokenServiceValidateTokenCall) Do(f func(domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
+func (c *MockTokenServiceValidateTokenCall) Do(f func(context.Context, domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockTokenServiceValidateTokenCall) DoAndReturn(f func(domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
+func (c *MockTokenServiceValidateTokenCall) DoAndReturn(f func(context.Context, domain.Token) (domain.UserID, error)) *MockTokenServiceValidateTokenCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
