@@ -14,6 +14,10 @@ var (
 	// there is either a credentials mismatch or user does not exist.
 	ErrUserAuthenticationFailed = errors.New("user authentication failed")
 
+	// ErrEmptyPassword is returned during user registration process when [PasswordPlain]
+	// is an empty string.
+	ErrEmptyPassword = errors.New("password is empty")
+
 	// ErrBalanceNotEnoughFunds is returned when user attempts to pay for an order with funds from the balance,
 	// but there are not enough funds for that.
 	ErrBalanceNotEnoughFunds = errors.New("not enough funds on balance")
