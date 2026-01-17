@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 )
@@ -53,7 +52,7 @@ func (m *OrderManager) GetOrders(ctx context.Context, userID domain.UserID) ([]d
 		return nil, fmt.Errorf("cannot retrieve orders: %w", err)
 	}
 
-	SortOrdersChronologicallyInReverse(orders)
+	domain.SortByTimestampFromNewestToOldest(orders)
 
 	return orders, nil
 }
@@ -70,15 +69,6 @@ func (m *OrderManager) GetAccruals(
 	}
 
 	return accruals, nil
-}
-
-// SortOrdersChronologicallyInReverse performs in-place sort of
-// provided orders to arrange them by their creation date
-// from the newest to the oldest.
-func SortOrdersChronologicallyInReverse(orders []domain.Order) {
-	slices.SortStableFunc(orders, func(a, b domain.Order) int {
-		return b.CreatedAt.Compare(a.CreatedAt)
-	})
 }
 
 // GetOrderIDs takes an array of orders and returns an array of order IDs.

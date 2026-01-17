@@ -124,11 +124,11 @@ var _ = Describe("OrderManager", func() {
 
 	Describe("listing user's orders", func() {
 		var (
-			actualOrders, expectedOrders []domain.Order
+			orders []domain.Order
 		)
 
 		JustBeforeEach(func() {
-			actualOrders, err = orderMgr.GetOrders(GinkgoT().Context(), userID)
+			orders, err = orderMgr.GetOrders(GinkgoT().Context(), userID)
 		})
 
 		When("user has no orders", func() {
@@ -140,26 +140,28 @@ var _ = Describe("OrderManager", func() {
 
 			It("should return empty array without errors", func() {
 				Expect(err).To(Succeed())
-				Expect(actualOrders).To(BeEmpty())
+				Expect(orders).To(BeEmpty())
 			})
 		})
 
 		When("user has some orders", func() {
-			BeforeEach(func() {
-				orders := getExampleOrdersUnsorted()
+			var expectedOrders []domain.Order
 
-				expectedOrders = slices.Clone(orders)
-				service.SortOrdersChronologicallyInReverse(expectedOrders)
-				Expect(expectedOrders).NotTo(Equal(orders))
+			BeforeEach(func() {
+				mockOrders := getExampleOrdersUnsorted()
+
+				expectedOrders = slices.Clone(mockOrders)
+				domain.SortByTimestampFromNewestToOldest(expectedOrders)
+				Expect(expectedOrders).NotTo(Equal(mockOrders))
 
 				orderRepo.EXPECT().
 					GetOrders(mockCtx(), userID).
-					Return(orders, nil)
+					Return(mockOrders, nil)
 			})
 
 			It("should return sorted array from the newest to the oldest", func() {
 				Expect(err).To(Succeed())
-				Expect(actualOrders).To(Equal(expectedOrders))
+				Expect(orders).To(Equal(expectedOrders))
 			})
 		})
 
@@ -172,7 +174,7 @@ var _ = Describe("OrderManager", func() {
 
 			It("should return empty array and an error", func() {
 				Expect(err).To(MatchError(ContainSubstring("no orders for you, sir")))
-				Expect(actualOrders).To(BeEmpty())
+				Expect(orders).To(BeEmpty())
 			})
 		})
 	})
@@ -233,65 +235,6 @@ var _ = Describe("OrderManager", func() {
 		})
 	})
 
-})
-
-var _ = Describe("SortOrders", func() {
-
-	now := time.Now().UTC()
-
-	DescribeTable("sorting orders",
-		func(before, after []domain.Order) {
-			service.SortOrdersChronologicallyInReverse(before)
-			Expect(before).To(Equal(after))
-		},
-		Entry("empty slices", []domain.Order{}, []domain.Order{}),
-		Entry("two orders",
-			[]domain.Order{
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-			},
-			[]domain.Order{
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-			},
-		),
-		Entry("four orders",
-			[]domain.Order{
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-				{ID: 789, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 1111, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-			},
-			[]domain.Order{
-				{ID: 789, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 1111, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-			},
-		),
-		Entry("nine orders",
-			[]domain.Order{
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-				{ID: 789, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 1111, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-				{ID: 1230, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-				{ID: 7890, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 4560, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 2222, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-			},
-			[]domain.Order{
-				{ID: 789, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 7890, Status: domain.OrderStatusNew, CreatedAt: now.Add(5 * time.Hour)},
-				{ID: 1111, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-				{ID: 2222, Status: domain.OrderStatusNew, CreatedAt: now.Add(2 * time.Hour)},
-				{ID: 456, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 4560, Status: domain.OrderStatusNew, CreatedAt: now.Add(-2 * time.Hour)},
-				{ID: 123, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-				{ID: 1230, Status: domain.OrderStatusNew, CreatedAt: now.Add(-5 * time.Hour)},
-			},
-		),
-	)
 })
 
 func getExampleOrdersUnsorted() []domain.Order {
