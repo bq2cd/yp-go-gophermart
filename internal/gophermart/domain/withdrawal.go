@@ -9,3 +9,8 @@ type WithdrawalTransaction struct {
 	Amount      float64
 	ProcessedAt time.Time
 }
+
+// Timestamp returns time at which a transaction was processed.
+func (t WithdrawalTransaction) Timestamp() time.Time {
+	return t.ProcessedAt
+}

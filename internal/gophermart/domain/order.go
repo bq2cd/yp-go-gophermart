@@ -27,3 +27,8 @@ type Order struct {
 	Status    OrderStatus
 	CreatedAt time.Time
 }
+
+// Timestamp returns order's creation time.
+func (o Order) Timestamp() time.Time {
+	return o.CreatedAt
+}
