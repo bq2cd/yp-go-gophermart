@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	exampleUserID = domain.UserID("user1")
+	exampleUserID  = domain.UserID("user1")
+	exampleOrderID = domain.OrderID(1234567890)
 )
 
 func TestService(t *testing.T) {
