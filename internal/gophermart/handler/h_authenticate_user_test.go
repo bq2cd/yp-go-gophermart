@@ -8,6 +8,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 var _ = Describe("AuthenticateUser", func() {
@@ -31,7 +32,7 @@ var _ = Describe("AuthenticateUser", func() {
 
 	getUserServiceMockCall := func(credentials api.LoginPassword) *mocks.MockUserServiceAuthenticateCall {
 		return testMocks.UserService.EXPECT().
-			Authenticate(mockCtx(), domain.UserID(credentials.Login), domain.PasswordPlain(credentials.Password))
+			Authenticate(testutil.MockCtx(), domain.UserID(credentials.Login), domain.PasswordPlain(credentials.Password))
 	}
 
 	testCasesForUserRegistrationAndAuthentication(&testCtx, &testMocks, getUserServiceMockCall)

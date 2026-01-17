@@ -8,6 +8,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 var _ = Describe("GetBalance", func() {
@@ -42,10 +43,10 @@ var _ = Describe("GetBalance", func() {
 				}
 
 				testMocks.BalanceService.EXPECT().
-					GetBalance(mockCtx(), domain.UserID(userLogin)).
+					GetBalance(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(expectedBalance.Current, nil)
 				testMocks.BalanceService.EXPECT().
-					GetTotalAmountWithdrawn(mockCtx(), domain.UserID(userLogin)).
+					GetTotalAmountWithdrawn(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(expectedBalance.Withdrawn, nil)
 			})
 
@@ -62,15 +63,15 @@ var _ = Describe("GetBalance", func() {
 			},
 			Entry("when getting user's balance current value", func() {
 				testMocks.BalanceService.EXPECT().
-					GetBalance(mockCtx(), domain.UserID(userLogin)).
+					GetBalance(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(0, errors.New("balance current value error"))
 			}),
 			Entry("when getting user's total withdrawn amount", func() {
 				testMocks.BalanceService.EXPECT().
-					GetBalance(mockCtx(), domain.UserID(userLogin)).
+					GetBalance(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(3.5, nil)
 				testMocks.BalanceService.EXPECT().
-					GetTotalAmountWithdrawn(mockCtx(), domain.UserID(userLogin)).
+					GetTotalAmountWithdrawn(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(0, errors.New("withdrawn amount error"))
 			}),
 		)

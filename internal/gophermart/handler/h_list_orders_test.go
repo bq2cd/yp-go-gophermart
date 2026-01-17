@@ -9,6 +9,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 var _ = Describe("ListOrders", func() {
@@ -64,7 +65,7 @@ var _ = Describe("ListOrders", func() {
 				}
 
 				testMocks.OrderService.EXPECT().
-					GetOrders(mockCtx(), domain.UserID(userLogin)).
+					GetOrders(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return([]domain.Order{
 						{
 							ID:        12345,
@@ -89,7 +90,7 @@ var _ = Describe("ListOrders", func() {
 					}, nil)
 
 				testMocks.OrderService.EXPECT().
-					GetAccruals(mockCtx(), domain.UserID(userLogin), []domain.OrderID{12345, 67890, 2039912, 111}).
+					GetAccruals(testutil.MockCtx(), domain.UserID(userLogin), []domain.OrderID{12345, 67890, 2039912, 111}).
 					Return(map[domain.OrderID]float64{2039912: 99.9}, nil)
 			})
 
@@ -99,7 +100,7 @@ var _ = Describe("ListOrders", func() {
 		When("user has never uploaded any orders", func() {
 			BeforeEach(func() {
 				testMocks.OrderService.EXPECT().
-					GetOrders(mockCtx(), domain.UserID(userLogin)).
+					GetOrders(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(nil, nil)
 			})
 
@@ -116,12 +117,12 @@ var _ = Describe("ListOrders", func() {
 			},
 			Entry("when getting orders", func() {
 				testMocks.OrderService.EXPECT().
-					GetOrders(mockCtx(), domain.UserID(userLogin)).
+					GetOrders(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(nil, errors.New("error getting orders"))
 			}),
 			Entry("when getting accruals", func() {
 				testMocks.OrderService.EXPECT().
-					GetOrders(mockCtx(), domain.UserID(userLogin)).
+					GetOrders(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return([]domain.Order{
 						{
 							ID:        123,
@@ -135,7 +136,7 @@ var _ = Describe("ListOrders", func() {
 						},
 					}, nil)
 				testMocks.OrderService.EXPECT().
-					GetAccruals(mockCtx(), domain.UserID(userLogin), []domain.OrderID{123, 456}).
+					GetAccruals(testutil.MockCtx(), domain.UserID(userLogin), []domain.OrderID{123, 456}).
 					Return(nil, errors.New("error getting accruals"))
 			}),
 		)

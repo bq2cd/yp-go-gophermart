@@ -13,6 +13,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/mocks"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 // Ensure [service.BalanceManager] implements [handler.BalanceService].
@@ -42,7 +43,7 @@ var _ = Describe("BalanceManager", func() {
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetCurrentValue(mockCtx(), userID)
+				GetCurrentValue(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -89,7 +90,7 @@ var _ = Describe("BalanceManager", func() {
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetWithdrawalTransactions(mockCtx(), userID)
+				GetWithdrawalTransactions(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -162,7 +163,7 @@ var _ = Describe("BalanceManager", func() {
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetWithdrawalTransactions(mockCtx(), userID)
+				GetWithdrawalTransactions(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -243,7 +244,7 @@ var _ = Describe("BalanceManager", func() {
 				amount = 5.23
 
 				mockCall = balanceRepo.EXPECT().
-					WithdrawFunds(mockCtx(), userID, amount)
+					WithdrawFunds(testutil.MockCtx(), userID, amount)
 			})
 
 			When("there are enough funds", func() {

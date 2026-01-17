@@ -8,6 +8,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 func testCasesForUnauthorizedUser(testCtxPtr **TestContext, testMocksPtr **TestMocks) {
@@ -39,7 +40,7 @@ func testCasesForUnauthorizedUser(testCtxPtr **TestContext, testMocksPtr **TestM
 		},
 		Entry("random token", api.AuthorizationHeaderValuePrefix+exampleInvalidAuthToken, func() {
 			testMocks.TokenService.EXPECT().
-				ValidateToken(mockCtx(), domain.Token(exampleInvalidAuthToken)).
+				ValidateToken(testutil.MockCtx(), domain.Token(exampleInvalidAuthToken)).
 				Return(domain.UserID(userLogin), domain.ErrUserAuthenticationFailed)
 		}),
 		Entry("correct token without Bearer prefix", exampleValidAuthToken, func() {}),
@@ -74,7 +75,7 @@ func withUserAuthenticatedContext(
 			testCtx.Request.SetAuthToken(authToken)
 
 			testMocks.TokenService.EXPECT().
-				ValidateToken(mockCtx(), domain.Token(authToken)).
+				ValidateToken(testutil.MockCtx(), domain.Token(authToken)).
 				Return(domain.UserID(*userLoginPtr), nil)
 		})
 

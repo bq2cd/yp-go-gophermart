@@ -10,6 +10,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 var _ = Describe("Withdraw", func() {
@@ -47,7 +48,7 @@ var _ = Describe("Withdraw", func() {
 				testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 				mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-					PayForOrderFromBalance(mockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
+					PayForOrderFromBalance(testutil.MockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 			})
 
 			When("user has enough funds to cover the request", func() {
@@ -101,7 +102,7 @@ var _ = Describe("Withdraw", func() {
 					testCtx.Request.SetBodyJSON(withdrawalRequest)
 
 					mockWithdrawalCall = testMocks.BalanceService.EXPECT().
-						PayForOrderFromBalance(mockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
+						PayForOrderFromBalance(testutil.MockCtx(), domain.UserID(userLogin), domain.OrderID(exampleValidOrderID), 12.3)
 
 					setupMock()
 				})

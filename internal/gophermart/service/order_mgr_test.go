@@ -15,6 +15,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/mocks"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 // Ensure [service.OrderManager] implements [handler.OrderService].
@@ -54,7 +55,7 @@ var _ = Describe("OrderManager", func() {
 		When("order is brand new", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					CreateOrder(mockCtx(), userID, orderID).
+					CreateOrder(testutil.MockCtx(), userID, orderID).
 					Return(true, userID, nil)
 
 				orderProcessor.EXPECT().
@@ -70,7 +71,7 @@ var _ = Describe("OrderManager", func() {
 		When("order has been uploaded by the same user", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					CreateOrder(mockCtx(), userID, orderID).
+					CreateOrder(testutil.MockCtx(), userID, orderID).
 					Return(false, userID, nil)
 			})
 
@@ -95,7 +96,7 @@ var _ = Describe("OrderManager", func() {
 				createdBy = domain.UserID("another-user")
 
 				orderRepo.EXPECT().
-					CreateOrder(mockCtx(), userID, orderID).
+					CreateOrder(testutil.MockCtx(), userID, orderID).
 					Return(false, createdBy, nil)
 			})
 
@@ -114,7 +115,7 @@ var _ = Describe("OrderManager", func() {
 		When("order repository fails on order creation", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					CreateOrder(mockCtx(), userID, orderID).
+					CreateOrder(testutil.MockCtx(), userID, orderID).
 					Return(false, userID, errors.New("order is not worthy"))
 			})
 			It("should return an error", func() {
@@ -125,7 +126,7 @@ var _ = Describe("OrderManager", func() {
 		When("order processor is shutting down", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					CreateOrder(mockCtx(), userID, orderID).
+					CreateOrder(testutil.MockCtx(), userID, orderID).
 					Return(true, userID, nil)
 
 				orderProcessor.EXPECT().
@@ -150,7 +151,7 @@ var _ = Describe("OrderManager", func() {
 		When("user has no orders", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					GetOrders(mockCtx(), userID).
+					GetOrders(testutil.MockCtx(), userID).
 					Return(nil, nil)
 			})
 
@@ -171,7 +172,7 @@ var _ = Describe("OrderManager", func() {
 				Expect(expectedOrders).NotTo(Equal(mockOrders))
 
 				orderRepo.EXPECT().
-					GetOrders(mockCtx(), userID).
+					GetOrders(testutil.MockCtx(), userID).
 					Return(mockOrders, nil)
 			})
 
@@ -184,7 +185,7 @@ var _ = Describe("OrderManager", func() {
 		When("order repository fails on order retrieval", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					GetOrders(mockCtx(), userID).
+					GetOrders(testutil.MockCtx(), userID).
 					Return(nil, errors.New("no orders for you, sir"))
 			})
 
@@ -212,7 +213,7 @@ var _ = Describe("OrderManager", func() {
 		When("no order has accrual points", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					GetOrderAccruals(mockCtx(), userID, orderIDs).
+					GetOrderAccruals(testutil.MockCtx(), userID, orderIDs).
 					Return(nil, nil)
 			})
 
@@ -227,7 +228,7 @@ var _ = Describe("OrderManager", func() {
 				expectedAccruals = getExampleAccruals(getExampleOrdersUnsorted())
 
 				orderRepo.EXPECT().
-					GetOrderAccruals(mockCtx(), userID, orderIDs).
+					GetOrderAccruals(testutil.MockCtx(), userID, orderIDs).
 					Return(expectedAccruals, nil)
 			})
 
@@ -240,7 +241,7 @@ var _ = Describe("OrderManager", func() {
 		When("order repository fails", func() {
 			BeforeEach(func() {
 				orderRepo.EXPECT().
-					GetOrderAccruals(mockCtx(), userID, orderIDs).
+					GetOrderAccruals(testutil.MockCtx(), userID, orderIDs).
 					Return(nil, errors.New("accruals are not ready"))
 			})
 

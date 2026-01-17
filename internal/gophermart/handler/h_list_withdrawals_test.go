@@ -9,6 +9,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 var _ = Describe("ListWithdrawals", func() {
@@ -53,7 +54,7 @@ var _ = Describe("ListWithdrawals", func() {
 				}
 
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
+					GetWithdrawalTransactions(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return([]domain.WithdrawalTransaction{
 						{
 							OrderID:     domain.OrderID(12345),
@@ -74,7 +75,7 @@ var _ = Describe("ListWithdrawals", func() {
 		When("user has never made any withdrawals", func() {
 			BeforeEach(func() {
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
+					GetWithdrawalTransactions(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(nil, nil)
 			})
 
@@ -91,7 +92,7 @@ var _ = Describe("ListWithdrawals", func() {
 			},
 			Entry("when getting withdrawal transactions", func() {
 				testMocks.BalanceService.EXPECT().
-					GetWithdrawalTransactions(mockCtx(), domain.UserID(userLogin)).
+					GetWithdrawalTransactions(testutil.MockCtx(), domain.UserID(userLogin)).
 					Return(nil, errors.New("error getting transactions"))
 			}),
 		)
