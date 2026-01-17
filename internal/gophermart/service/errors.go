@@ -14,4 +14,8 @@ var (
 	// ErrAmountIsNotPositive is returned by [BalanceManager.PayForOrderFromBalance] when
 	// requested amount is not positive.
 	ErrAmountIsNotPositive = errors.New("amount is not positive")
+
+	// ErrOrderProcessorShuttingDown is returned by [OrderManager.CreateOrder] when
+	// [OrderProcessor] is shutting down and cannot accept new orders.
+	ErrOrderProcessorShuttingDown = errors.New("order processor is shutting down")
 )
