@@ -31,12 +31,12 @@ func (m *BalanceManager) GetBalance(ctx context.Context, userID domain.UserID) (
 
 // GetTotalAmountWithdrawn returns cumulative value of all withdrawal transactions made by a user.
 func (m *BalanceManager) GetTotalAmountWithdrawn(ctx context.Context, userID domain.UserID) (float64, error) {
-	transactions, err := m.balanceRepo.GetWithdrawalTransactions(ctx, userID)
+	total, err := m.balanceRepo.GetTotalAmountWithdrawn(ctx, userID)
 	if err != nil {
-		return 0, fmt.Errorf("cannot retrieve withdrawal transactions: %w", err)
+		return 0, fmt.Errorf("cannot retrieve total withdrawals: %w", err)
 	}
 
-	return sumWithdrawalTransactions(transactions), nil
+	return total, nil
 }
 
 // GetWithdrawalTransactions returns an array of withdrawal transactions made by a user,
@@ -78,13 +78,4 @@ func (m *BalanceManager) PayForOrderFromBalance(
 	}
 
 	return nil
-}
-
-func sumWithdrawalTransactions(transactions []domain.WithdrawalTransaction) float64 {
-	total := 0.0
-	for _, trx := range transactions {
-		total += trx.Amount
-	}
-
-	return total
 }
