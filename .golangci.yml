@@ -6,10 +6,25 @@ linters:
   enable:
     - wsl_v5
   disable:
-    - depguard
     - paralleltest
     - wsl
   settings:
+    depguard:
+      rules:
+        no_test_packages_in_prod_code:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!$test"
+            - "!**/mocks/**"
+            - "!**/testutil/**"
+          deny:
+            - pkg: github.com/onsi/ginkgo
+              desc: Testing libraries are not allowed in production code
+            - pkg: github.com/onsi/gomega
+              desc: Testing libraries are not allowed in production code
+            - pkg: go.uber.org/mock/gomock
+              desc: Testing libraries are not allowed in production code
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: true
