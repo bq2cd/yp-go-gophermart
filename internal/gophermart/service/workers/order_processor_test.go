@@ -1,0 +1,354 @@
+package workers_test
+
+import (
+	"context"
+	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+)
+
+// Ensure [workers.OrderProcessor] implements [service.OrderProcessor].
+var _ service.OrderProcessor = (*workers.OrderProcessor)(nil)
+
+var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
+	var (
+		orderRepo             *mocks.TestOrderRepository
+		accrualClient         *mocks.TestAccrualClient
+		orderQueue            *mocks.TestOrderQueue
+		orderProcessorOptions []workers.OrderProcessorOption
+		orderProcessor        *workers.OrderProcessor
+	)
+
+	BeforeEach(func() {
+		orderRepo = mocks.NewTestOrderRepository()
+		accrualClient = mocks.NewTestAccrualClient()
+		orderQueue = mocks.NewTestOrderQueue()
+		orderProcessorOptions = []workers.OrderProcessorOption{}
+	})
+
+	JustBeforeEach(func() {
+		orderProcessor = workers.NewOrderProcessor(
+			orderRepo,
+			orderQueue,
+			accrualClient,
+			orderProcessorOptions...,
+		)
+	})
+
+	Describe("enqueuing orders", func() {
+		Context("single order", func() {
+			var (
+				userID                  domain.UserID
+				orderID                 domain.OrderID
+				accepted                bool
+				shutdownBeforeEnqueuing bool
+			)
+
+			BeforeEach(func() {
+				userID = domain.UserID("user1")
+				orderID = domain.OrderID(12334)
+			})
+
+			JustBeforeEach(func() {
+				if shutdownBeforeEnqueuing {
+					ensureOrderProcessorIsClosed(orderProcessor)
+				}
+
+				accepted = orderProcessor.EnqueueOrder(userID, orderID)
+			})
+
+			When("order processor is running", func() {
+				It("should be accepted", func() {
+					Expect(accepted).To(BeTrue())
+				})
+			})
+
+			When("order processor has been shutdown", func() {
+				BeforeEach(func() {
+					shutdownBeforeEnqueuing = true
+				})
+
+				It("should be rejected", func() {
+					Expect(accepted).To(BeFalse())
+				})
+			})
+		})
+	})
+
+	Describe("processing orders", func() {
+		var (
+			testCtx    *TestOrderProcessorContext
+			runTimeout time.Duration
+		)
+
+		BeforeEach(func() {
+			testCtx = NewTestOrderProcessorContext()
+			runTimeout = 100 * time.Millisecond
+		})
+
+		JustBeforeEach(func() {
+			testCtx.SetupMocks(orderRepo, accrualClient)
+			testCtx.EnqueueOrders(orderProcessor)
+
+			ctx, cancel := context.WithTimeout(GinkgoT().Context(), runTimeout)
+			defer cancel()
+
+			go orderProcessor.Run(ctx)
+
+			Eventually(orderProcessor.HasFinished).To(BeTrue())
+		})
+
+		Context("all orders are new", func() {
+			BeforeEach(func() {
+				testCtx.InputOrders = []domain.OrderID{10_123, 10_789, 20_123, 20_456, 20_789, 30_456, 40_123, 99_999}
+				testCtx.OrderRepoData = mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 0.0,
+						"user2": 9.99,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+						10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+						20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+						20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+						20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+						30_123: {UserID: "user3", Status: domain.OrderStatusNew},
+						30_456: {UserID: "user3", Status: domain.OrderStatusNew},
+						30_789: {UserID: "user3", Status: domain.OrderStatusNew},
+						40_123: {UserID: "user4", Status: domain.OrderStatusNew},
+					},
+				}
+				testCtx.AccrualData = mocks.TestAccrualData{
+					10_123: {Status: accdomain.OrderStatusRegistered},
+					10_789: {Status: accdomain.OrderStatusProcessed, Accrual: 7.77},
+					20_123: {Status: accdomain.OrderStatusProcessing},
+					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 0.02},
+					20_789: {Status: accdomain.OrderStatusInvalid},
+					30_456: {Status: accdomain.OrderStatusRegistered},
+				}
+				testCtx.OrderRepoErrors = mocks.TestOrderRepoErrorMap{
+					10_789: {GetOrderStatus: mocks.NewTestError(2)},
+					20_456: {MarkOrderProcessing: mocks.NewTestError(1)},
+					30_456: {MarkOrderProcessing: mocks.NewTestError(0, 1)},
+				}
+				testCtx.AccrualErrors = mocks.TestAccrualErrorMap{
+					10_123: {GetOrderStatus: mocks.NewTestError(3)},
+				}
+			})
+
+			It("test repo should have proper state", func() {
+				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 7.77,
+						"user2": 10.01,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusProcessing},
+						10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+						10_789: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 7.77},
+						20_123: {UserID: "user2", Status: domain.OrderStatusProcessing},
+						20_456: {UserID: "user2", Status: domain.OrderStatusProcessed, Accrual: 0.02},
+						20_789: {UserID: "user2", Status: domain.OrderStatusInvalid},
+						30_123: {UserID: "user3", Status: domain.OrderStatusNew},
+						30_456: {UserID: "user3", Status: domain.OrderStatusProcessing},
+						30_789: {UserID: "user3", Status: domain.OrderStatusNew},
+						40_123: {UserID: "user4", Status: domain.OrderStatusInvalid},
+					},
+				})
+			})
+		})
+
+		Context("picking up previous state", func() {
+			BeforeEach(func() {
+				testCtx.InputOrders = []domain.OrderID{
+					99_998,
+					10_123,
+					10_456,
+					20_123,
+					20_456,
+					30_123,
+					40_123,
+					50_789,
+					99_999,
+				}
+				testCtx.OrderRepoData = mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 5.0,
+						"user2": 10.0,
+						"user4": 20.0,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						10_456: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 12.2},
+						20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+						20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+						30_123: {UserID: "user3", Status: domain.OrderStatusNew},
+						40_123: {UserID: "user4", Status: domain.OrderStatusProcessing},
+						40_789: {UserID: "user4", Status: domain.OrderStatusNew},
+						50_789: {UserID: "user5", Status: domain.OrderStatus(-99)},
+					},
+				}
+				testCtx.AccrualData = mocks.TestAccrualData{
+					10_123: {Status: accdomain.OrderStatusRegistered},
+					10_456: {Status: accdomain.OrderStatusProcessing},
+					20_123: {Status: accdomain.OrderStatusProcessed, Accrual: 0.0},
+					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 5.55},
+					30_123: {Status: accdomain.OrderStatus(-99)},
+					40_123: {Status: accdomain.OrderStatusProcessed, Accrual: 17.5},
+				}
+				testCtx.OrderRepoErrors = mocks.TestOrderRepoErrorMap{
+					20_456: {MarkOrderProcessed: mocks.NewTestError(2)},
+					30_123: {MarkOrderInvalid: mocks.NewTestError(2)},
+				}
+				testCtx.AccrualErrors = mocks.TestAccrualErrorMap{
+					40_123: {GetOrderStatus: mocks.NewTestError(2)},
+				}
+			})
+
+			It("test repo should have proper state", func() {
+				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 5.0,
+						"user2": 15.55,
+						"user4": 37.5,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						10_456: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 12.2},
+						20_123: {UserID: "user2", Status: domain.OrderStatusProcessed, Accrual: 0.0},
+						20_456: {UserID: "user2", Status: domain.OrderStatusProcessed, Accrual: 5.55},
+						30_123: {UserID: "user3", Status: domain.OrderStatusInvalid},
+						40_123: {UserID: "user4", Status: domain.OrderStatusProcessed, Accrual: 17.5},
+						40_789: {UserID: "user4", Status: domain.OrderStatusNew},
+						50_789: {UserID: "user5", Status: domain.OrderStatus(-99)},
+					},
+				})
+			})
+
+		})
+
+		Context("working with delays", func() {
+			BeforeEach(func() {
+				runTimeout = 80 * time.Millisecond
+
+				testCtx.InputOrders = []domain.OrderID{
+					10_123,
+					20_456,
+				}
+				testCtx.OrderRepoData = mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 5.0,
+						"user2": 0.0,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
+					},
+				}
+				testCtx.AccrualData = mocks.TestAccrualData{
+					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
+					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
+				}
+				testCtx.OrderRepoDelays = mocks.TestOrderRepoDelayMap{
+					10_123: {
+						GetOrderStatus:     20 * time.Millisecond,
+						MarkOrderProcessed: 30 * time.Millisecond,
+					},
+				}
+				testCtx.AccrualDelays = mocks.TestAccrualDelayMap{
+					10_123: {GetOrderStatus: 50 * time.Millisecond},
+				}
+			})
+
+			It("test repo should have proper state", func() {
+				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 13.21,
+						"user2": 0.0,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 8.21},
+						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
+					},
+				})
+			})
+
+		})
+
+		Context("overriding shutdown/per-item timeouts", func() {
+			BeforeEach(func() {
+				runTimeout = 500 * time.Millisecond
+
+				orderProcessorOptions = []workers.OrderProcessorOption{
+					workers.WithOrderProcessorPerItemTimeout(25 * time.Millisecond),
+					workers.WithOrderProcessorShutdownTimeout(50 * time.Millisecond),
+				}
+
+				testCtx.InputOrders = []domain.OrderID{
+					10_123,
+					20_456,
+				}
+				testCtx.OrderRepoData = mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 5.0,
+						"user2": 0.0,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
+					},
+				}
+				testCtx.AccrualData = mocks.TestAccrualData{
+					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
+					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
+				}
+				testCtx.OrderRepoDelays = mocks.TestOrderRepoDelayMap{
+					10_123: {
+						GetOrderStatus: 50 * time.Millisecond,
+					},
+				}
+				testCtx.AccrualDelays = mocks.TestAccrualDelayMap{
+					20_456: {GetOrderStatus: 50 * time.Millisecond},
+				}
+			})
+
+			It("test repo should have proper state", func() {
+				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
+					Balances: mocks.TestBalanceMap{
+						"user1": 5.0,
+						"user2": 0.0,
+					},
+					Orders: mocks.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						20_456: {UserID: "user1", Status: domain.OrderStatusProcessing},
+					},
+				})
+			})
+
+		})
+	})
+})
+
+/////////////////////////////////////////////////////////////////////////////////
+
+func ensureOrderProcessorIsClosed(
+	orderProcessor *workers.OrderProcessor,
+) {
+	GinkgoHelper()
+
+	ctx, cancel := context.WithCancel(GinkgoT().Context())
+
+	go orderProcessor.Run(ctx)
+
+	cancel()
+
+	Eventually(orderProcessor.IsClosed).To(BeTrue())
+}

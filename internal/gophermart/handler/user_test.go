@@ -9,6 +9,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 type mockCallErrorReturner[T any] interface {
@@ -48,7 +49,7 @@ func testCasesForUserRegistrationAndAuthentication[T mockCallErrorReturner[T]](
 
 			getUserServiceMockCall(loginPassword).Return(nil)
 			testMocks.TokenService.EXPECT().
-				IssueToken(mockCtx(), domain.UserID(loginPassword.Login)).
+				IssueToken(testutil.MockCtx(), domain.UserID(loginPassword.Login)).
 				Return(domain.Token(expectedToken), nil)
 		})
 
@@ -96,7 +97,7 @@ func testCasesForUserRegistrationAndAuthentication[T mockCallErrorReturner[T]](
 		}),
 		Entry("when issuing a token", func() {
 			getUserServiceMockCall(loginPassword).Return(nil)
-			testMocks.TokenService.EXPECT().IssueToken(mockCtx(), domain.UserID(loginPassword.Login)).
+			testMocks.TokenService.EXPECT().IssueToken(testutil.MockCtx(), domain.UserID(loginPassword.Login)).
 				Return(domain.Token(""), errors.New("cannot issue token"))
 		}),
 	)

@@ -13,6 +13,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/mocks"
+	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
 )
 
 // Ensure [service.BalanceManager] implements [handler.BalanceService].
@@ -42,7 +43,7 @@ var _ = Describe("BalanceManager", func() {
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetCurrentValue(mockCtx(), userID)
+				GetCurrentValue(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -84,12 +85,12 @@ var _ = Describe("BalanceManager", func() {
 	Describe("getting total amount of withdrawals", func() {
 		var (
 			amount   float64
-			mockCall *mocks.MockBalanceRepositoryGetWithdrawalTransactionsCall
+			mockCall *mocks.MockBalanceRepositoryGetTotalAmountWithdrawnCall
 		)
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetWithdrawalTransactions(mockCtx(), userID)
+				GetTotalAmountWithdrawn(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -103,7 +104,7 @@ var _ = Describe("BalanceManager", func() {
 
 			When("user has made no withdrawals", func() {
 				BeforeEach(func() {
-					mockCall.Return(nil, nil)
+					mockCall.Return(0, nil)
 				})
 
 				It("should return zero", func() {
@@ -113,23 +114,7 @@ var _ = Describe("BalanceManager", func() {
 
 			When("user has made some withdrawals", func() {
 				BeforeEach(func() {
-					mockCall.Return([]domain.WithdrawalTransaction{
-						{
-							OrderID:     123,
-							Amount:      3.12,
-							ProcessedAt: time.Now(),
-						},
-						{
-							OrderID:     456,
-							Amount:      1.45,
-							ProcessedAt: time.Now(),
-						},
-						{
-							OrderID:     789,
-							Amount:      15.43,
-							ProcessedAt: time.Now(),
-						},
-					}, nil)
+					mockCall.Return(20.0, nil)
 				})
 
 				It("should return total amount", func() {
@@ -144,7 +129,7 @@ var _ = Describe("BalanceManager", func() {
 			BeforeEach(func() {
 				expectedErr = errors.New("withrawals transactions are unavailable")
 
-				mockCall.Return(nil, expectedErr)
+				mockCall.Return(0, expectedErr)
 			})
 
 			It("should return an error", func() {
@@ -162,7 +147,7 @@ var _ = Describe("BalanceManager", func() {
 
 		BeforeEach(func() {
 			mockCall = balanceRepo.EXPECT().
-				GetWithdrawalTransactions(mockCtx(), userID)
+				GetWithdrawalTransactions(testutil.MockCtx(), userID)
 		})
 
 		JustBeforeEach(func() {
@@ -243,7 +228,7 @@ var _ = Describe("BalanceManager", func() {
 				amount = 5.23
 
 				mockCall = balanceRepo.EXPECT().
-					WithdrawFunds(mockCtx(), userID, amount)
+					WithdrawFunds(testutil.MockCtx(), userID, amount)
 			})
 
 			When("there are enough funds", func() {

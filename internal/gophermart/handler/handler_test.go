@@ -2,14 +2,12 @@ package handler_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"maps"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -216,12 +214,4 @@ func expectHTTPStatusWithAuthToken(testCtxPtr **TestContext, status int, expecte
 			testCtx.GetHeaderValue(api.AuthorizationHeaderName),
 		).To(Equal(api.AuthorizationHeaderValuePrefix + *expectedTokenPtr))
 	})
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-
-func mockCtx() gomock.Matcher {
-	ctx := reflect.TypeFor[context.Context]()
-
-	return gomock.AssignableToTypeOf(ctx)
 }

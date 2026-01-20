@@ -1,11 +1,7 @@
 package service_test
 
 import (
-	"context"
-	"reflect"
 	"testing"
-
-	"go.uber.org/mock/gomock"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,10 +17,4 @@ const (
 func TestService(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Service Suite")
-}
-
-func mockCtx() gomock.Matcher {
-	ctx := reflect.TypeFor[context.Context]()
-
-	return gomock.AssignableToTypeOf(ctx)
 }

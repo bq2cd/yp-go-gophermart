@@ -41,44 +41,6 @@ func (m *MockBalanceRepository) EXPECT() *MockBalanceRepositoryMockRecorder {
 	return m.recorder
 }
 
-// AddFunds mocks base method.
-func (m *MockBalanceRepository) AddFunds(ctx context.Context, userID domain.UserID, amount float64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddFunds", ctx, userID, amount)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AddFunds indicates an expected call of AddFunds.
-func (mr *MockBalanceRepositoryMockRecorder) AddFunds(ctx, userID, amount any) *MockBalanceRepositoryAddFundsCall {
-	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddFunds", reflect.TypeOf((*MockBalanceRepository)(nil).AddFunds), ctx, userID, amount)
-	return &MockBalanceRepositoryAddFundsCall{Call: call}
-}
-
-// MockBalanceRepositoryAddFundsCall wrap *gomock.Call
-type MockBalanceRepositoryAddFundsCall struct {
-	*gomock.Call
-}
-
-// Return rewrite *gomock.Call.Return
-func (c *MockBalanceRepositoryAddFundsCall) Return(arg0 error) *MockBalanceRepositoryAddFundsCall {
-	c.Call = c.Call.Return(arg0)
-	return c
-}
-
-// Do rewrite *gomock.Call.Do
-func (c *MockBalanceRepositoryAddFundsCall) Do(f func(context.Context, domain.UserID, float64) error) *MockBalanceRepositoryAddFundsCall {
-	c.Call = c.Call.Do(f)
-	return c
-}
-
-// DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBalanceRepositoryAddFundsCall) DoAndReturn(f func(context.Context, domain.UserID, float64) error) *MockBalanceRepositoryAddFundsCall {
-	c.Call = c.Call.DoAndReturn(f)
-	return c
-}
-
 // GetCurrentValue mocks base method.
 func (m *MockBalanceRepository) GetCurrentValue(ctx context.Context, userID domain.UserID) (float64, error) {
 	m.ctrl.T.Helper()
@@ -114,6 +76,45 @@ func (c *MockBalanceRepositoryGetCurrentValueCall) Do(f func(context.Context, do
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
 func (c *MockBalanceRepositoryGetCurrentValueCall) DoAndReturn(f func(context.Context, domain.UserID) (float64, error)) *MockBalanceRepositoryGetCurrentValueCall {
+	c.Call = c.Call.DoAndReturn(f)
+	return c
+}
+
+// GetTotalAmountWithdrawn mocks base method.
+func (m *MockBalanceRepository) GetTotalAmountWithdrawn(ctx context.Context, userID domain.UserID) (float64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTotalAmountWithdrawn", ctx, userID)
+	ret0, _ := ret[0].(float64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTotalAmountWithdrawn indicates an expected call of GetTotalAmountWithdrawn.
+func (mr *MockBalanceRepositoryMockRecorder) GetTotalAmountWithdrawn(ctx, userID any) *MockBalanceRepositoryGetTotalAmountWithdrawnCall {
+	mr.mock.ctrl.T.Helper()
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalAmountWithdrawn", reflect.TypeOf((*MockBalanceRepository)(nil).GetTotalAmountWithdrawn), ctx, userID)
+	return &MockBalanceRepositoryGetTotalAmountWithdrawnCall{Call: call}
+}
+
+// MockBalanceRepositoryGetTotalAmountWithdrawnCall wrap *gomock.Call
+type MockBalanceRepositoryGetTotalAmountWithdrawnCall struct {
+	*gomock.Call
+}
+
+// Return rewrite *gomock.Call.Return
+func (c *MockBalanceRepositoryGetTotalAmountWithdrawnCall) Return(arg0 float64, arg1 error) *MockBalanceRepositoryGetTotalAmountWithdrawnCall {
+	c.Call = c.Call.Return(arg0, arg1)
+	return c
+}
+
+// Do rewrite *gomock.Call.Do
+func (c *MockBalanceRepositoryGetTotalAmountWithdrawnCall) Do(f func(context.Context, domain.UserID) (float64, error)) *MockBalanceRepositoryGetTotalAmountWithdrawnCall {
+	c.Call = c.Call.Do(f)
+	return c
+}
+
+// DoAndReturn rewrite *gomock.Call.DoAndReturn
+func (c *MockBalanceRepositoryGetTotalAmountWithdrawnCall) DoAndReturn(f func(context.Context, domain.UserID) (float64, error)) *MockBalanceRepositoryGetTotalAmountWithdrawnCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

@@ -13,8 +13,8 @@ import (
 //
 //go:generate go tool mockgen -typed -destination=mocks/balance_repository.go -package=mocks . BalanceRepository
 type BalanceRepository interface {
-	AddFunds(ctx context.Context, userID domain.UserID, amount float64) error
 	WithdrawFunds(ctx context.Context, userID domain.UserID, amount float64) (bool, error)
 	GetCurrentValue(ctx context.Context, userID domain.UserID) (float64, error)
+	GetTotalAmountWithdrawn(ctx context.Context, userID domain.UserID) (float64, error)
 	GetWithdrawalTransactions(ctx context.Context, userID domain.UserID) ([]domain.WithdrawalTransaction, error)
 }

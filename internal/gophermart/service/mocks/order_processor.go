@@ -10,7 +10,6 @@
 package mocks
 
 import (
-	context "context"
 	reflect "reflect"
 
 	domain "github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -42,15 +41,17 @@ func (m *MockOrderProcessor) EXPECT() *MockOrderProcessorMockRecorder {
 }
 
 // EnqueueOrder mocks base method.
-func (m *MockOrderProcessor) EnqueueOrder(ctx context.Context, userID domain.UserID, orderID domain.OrderID) {
+func (m *MockOrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.OrderID) bool {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "EnqueueOrder", ctx, userID, orderID)
+	ret := m.ctrl.Call(m, "EnqueueOrder", userID, orderID)
+	ret0, _ := ret[0].(bool)
+	return ret0
 }
 
 // EnqueueOrder indicates an expected call of EnqueueOrder.
-func (mr *MockOrderProcessorMockRecorder) EnqueueOrder(ctx, userID, orderID any) *MockOrderProcessorEnqueueOrderCall {
+func (mr *MockOrderProcessorMockRecorder) EnqueueOrder(userID, orderID any) *MockOrderProcessorEnqueueOrderCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueOrder", reflect.TypeOf((*MockOrderProcessor)(nil).EnqueueOrder), ctx, userID, orderID)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueOrder", reflect.TypeOf((*MockOrderProcessor)(nil).EnqueueOrder), userID, orderID)
 	return &MockOrderProcessorEnqueueOrderCall{Call: call}
 }
 
@@ -60,19 +61,19 @@ type MockOrderProcessorEnqueueOrderCall struct {
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockOrderProcessorEnqueueOrderCall) Return() *MockOrderProcessorEnqueueOrderCall {
-	c.Call = c.Call.Return()
+func (c *MockOrderProcessorEnqueueOrderCall) Return(arg0 bool) *MockOrderProcessorEnqueueOrderCall {
+	c.Call = c.Call.Return(arg0)
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOrderProcessorEnqueueOrderCall) Do(f func(context.Context, domain.UserID, domain.OrderID)) *MockOrderProcessorEnqueueOrderCall {
+func (c *MockOrderProcessorEnqueueOrderCall) Do(f func(domain.UserID, domain.OrderID) bool) *MockOrderProcessorEnqueueOrderCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOrderProcessorEnqueueOrderCall) DoAndReturn(f func(context.Context, domain.UserID, domain.OrderID)) *MockOrderProcessorEnqueueOrderCall {
+func (c *MockOrderProcessorEnqueueOrderCall) DoAndReturn(f func(domain.UserID, domain.OrderID) bool) *MockOrderProcessorEnqueueOrderCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }
