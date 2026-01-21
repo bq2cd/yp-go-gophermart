@@ -4,6 +4,7 @@ go 1.24.7
 
 require (
 	github.com/alecthomas/kong v1.13.0
+	github.com/gammazero/deque v1.2.0
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-logr/logr v1.4.3
 	github.com/go-playground/validator/v10 v10.30.1
@@ -14,6 +15,7 @@ require (
 	go.uber.org/mock v0.6.0
 	golang.org/x/crypto v0.46.0
 	golang.org/x/mod v0.30.0
+	resty.dev/v3 v3.0.0-beta.6
 )
 
 require (
