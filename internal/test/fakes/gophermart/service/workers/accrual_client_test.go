@@ -1,4 +1,4 @@
-package mocks_test
+package fakes_test
 
 import (
 	"context"
@@ -9,22 +9,22 @@ import (
 
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 )
 
 var _ = Describe("AccrualClient", func() {
 	var (
-		accrualClient *mocks.TestAccrualClient
-		testData      mocks.TestAccrualData
-		testErrors    mocks.TestAccrualErrorMap
-		testDelays    mocks.TestAccrualDelayMap
+		accrualClient *fakes.TestAccrualClient
+		testData      fakes.TestAccrualData
+		testErrors    fakes.TestAccrualErrorMap
+		testDelays    fakes.TestAccrualDelayMap
 	)
 
 	BeforeEach(func() {
-		accrualClient = mocks.NewTestAccrualClient()
-		testData = mocks.TestAccrualData{}
-		testErrors = mocks.TestAccrualErrorMap{}
-		testDelays = mocks.TestAccrualDelayMap{}
+		accrualClient = fakes.NewTestAccrualClient()
+		testData = fakes.TestAccrualData{}
+		testErrors = fakes.TestAccrualErrorMap{}
+		testDelays = fakes.TestAccrualDelayMap{}
 	})
 
 	Describe("GetOrderStatus", func() {
@@ -83,7 +83,7 @@ var _ = Describe("AccrualClient", func() {
 					AccrualPoints: 3.25,
 				}
 
-				testData.Merge(mocks.TestAccrualData{
+				testData.Merge(fakes.TestAccrualData{
 					domain.OrderID(orderID): {Status: expectedOrder.Status, Accrual: expectedOrder.AccrualPoints},
 				})
 			})
@@ -96,8 +96,8 @@ var _ = Describe("AccrualClient", func() {
 
 			When("some test errors are configured", func() {
 				BeforeEach(func() {
-					testErrors.Merge(mocks.TestAccrualErrorMap{
-						domain.OrderID(orderID): {GetOrderStatus: mocks.NewTestError(2)},
+					testErrors.Merge(fakes.TestAccrualErrorMap{
+						domain.OrderID(orderID): {GetOrderStatus: fakes.NewTestError(2)},
 					})
 				})
 
@@ -126,7 +126,7 @@ var _ = Describe("AccrualClient", func() {
 				BeforeEach(func() {
 					startTime = time.Now()
 					expectedDuration = 100 * time.Millisecond
-					testDelays = mocks.TestAccrualDelayMap{
+					testDelays = fakes.TestAccrualDelayMap{
 						domain.OrderID(orderID): {GetOrderStatus: expectedDuration},
 					}
 				})

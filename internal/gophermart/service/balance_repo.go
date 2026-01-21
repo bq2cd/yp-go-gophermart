@@ -11,7 +11,7 @@ import (
 // to user's balance, as well as retrieving current balance value
 // and a list of withdrawal transactions.
 //
-//go:generate go tool mockgen -typed -destination=mocks/balance_repository.go -package=mocks . BalanceRepository
+//go:generate mise run mockgen --outfile=balance_repository.go BalanceRepository
 type BalanceRepository interface {
 	WithdrawFunds(ctx context.Context, userID domain.UserID, amount float64) (bool, error)
 	GetCurrentValue(ctx context.Context, userID domain.UserID) (float64, error)

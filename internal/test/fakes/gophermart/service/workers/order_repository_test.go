@@ -1,4 +1,4 @@
-package mocks_test
+package fakes_test
 
 import (
 	"context"
@@ -8,15 +8,15 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 )
 
 var _ = Describe("OrderRepository", func() {
 	var (
-		orderRepo  *mocks.TestOrderRepository
-		testData   mocks.TestOrderRepoData
-		testErrors mocks.TestOrderRepoErrorMap
-		testDelays mocks.TestOrderRepoDelayMap
+		orderRepo  *fakes.TestOrderRepository
+		testData   fakes.TestOrderRepoData
+		testErrors fakes.TestOrderRepoErrorMap
+		testDelays fakes.TestOrderRepoDelayMap
 		userID     domain.UserID
 		orderID    domain.OrderID
 		err        error
@@ -25,10 +25,10 @@ var _ = Describe("OrderRepository", func() {
 	)
 
 	BeforeEach(func() {
-		orderRepo = mocks.NewTestOrderRepository()
-		testData = mocks.NewTestOrderRepoData()
-		testErrors = mocks.TestOrderRepoErrorMap{}
-		testDelays = mocks.TestOrderRepoDelayMap{}
+		orderRepo = fakes.NewTestOrderRepository()
+		testData = fakes.NewTestOrderRepoData()
+		testErrors = fakes.TestOrderRepoErrorMap{}
+		testDelays = fakes.TestOrderRepoDelayMap{}
 		userID = domain.UserID("user1")
 		orderID = domain.OrderID(12345)
 		actionCtx = GinkgoT().Context() //nolint:fatcontext
@@ -112,8 +112,8 @@ var _ = Describe("OrderRepository", func() {
 			}
 
 			BeforeEach(func() {
-				testData = mocks.TestOrderRepoData{
-					Orders: mocks.TestOrderMap{
+				testData = fakes.TestOrderRepoData{
+					Orders: fakes.TestOrderMap{
 						orderID: {UserID: userID, Status: expectedStatus},
 					},
 				}
@@ -135,8 +135,8 @@ var _ = Describe("OrderRepository", func() {
 
 			Context("some test errors configured", func() {
 				BeforeEach(func() {
-					testErrors = mocks.TestOrderRepoErrorMap{
-						orderID: {GetOrderStatus: mocks.NewTestError(3, 0, 1)},
+					testErrors = fakes.TestOrderRepoErrorMap{
+						orderID: {GetOrderStatus: fakes.NewTestError(3, 0, 1)},
 					}
 				})
 
@@ -169,7 +169,7 @@ var _ = Describe("OrderRepository", func() {
 				BeforeEach(func() {
 					startTime = time.Now()
 					expectedDuration = 100 * time.Millisecond
-					testDelays = mocks.TestOrderRepoDelayMap{
+					testDelays = fakes.TestOrderRepoDelayMap{
 						orderID: {GetOrderStatus: expectedDuration},
 					}
 				})
@@ -196,10 +196,10 @@ var _ = Describe("OrderRepository", func() {
 			targetOrderAccrual = 0
 		})
 
-		initTestData := func(extraFn func() mocks.TestOrderRepoData) {
+		initTestData := func(extraFn func() fakes.TestOrderRepoData) {
 			BeforeEach(func() {
-				testData.Merge(mocks.TestOrderRepoData{
-					Orders: mocks.TestOrderMap{
+				testData.Merge(fakes.TestOrderRepoData{
+					Orders: fakes.TestOrderMap{
 						orderID: {UserID: userID, Status: initialOrderStatus, Accrual: initialOrderAccrual},
 					},
 				})
@@ -227,8 +227,8 @@ var _ = Describe("OrderRepository", func() {
 		whenOrderAlreadyInTargetState := func() {
 			Context("order already in target state", func() {
 				BeforeEach(func() {
-					testData.Merge(mocks.TestOrderRepoData{
-						Orders: mocks.TestOrderMap{
+					testData.Merge(fakes.TestOrderRepoData{
+						Orders: fakes.TestOrderMap{
 							orderID: {UserID: userID, Status: targetOrderStatus, Accrual: targetOrderAccrual},
 						},
 					})
@@ -249,13 +249,13 @@ var _ = Describe("OrderRepository", func() {
 		}
 
 		whenTestErrorsAreConfigured := func(
-			setupErr func(mocks.TestError) mocks.TestOrderRepoError,
+			setupErr func(fakes.TestError) fakes.TestOrderRepoError,
 			extraSuccessExpectations ...func(),
 		) {
 			Context("some test errors configured", func() {
 				BeforeEach(func() {
-					testErrors = mocks.TestOrderRepoErrorMap{
-						orderID: setupErr(mocks.NewTestError(2)),
+					testErrors = fakes.TestOrderRepoErrorMap{
+						orderID: setupErr(fakes.NewTestError(2)),
 					}
 				})
 
@@ -277,7 +277,7 @@ var _ = Describe("OrderRepository", func() {
 		}
 
 		whenTestDelaysAreConfigured := func(
-			setupDelay func(time.Duration) mocks.TestOrderRepoDelay,
+			setupDelay func(time.Duration) fakes.TestOrderRepoDelay,
 			extraSuccessExpectations ...func(),
 		) {
 			Context("some test delays configured", func() {
@@ -289,7 +289,7 @@ var _ = Describe("OrderRepository", func() {
 				BeforeEach(func() {
 					startTime = time.Now()
 					expectedDuration = 100 * time.Millisecond
-					testDelays = mocks.TestOrderRepoDelayMap{
+					testDelays = fakes.TestOrderRepoDelayMap{
 						orderID: setupDelay(expectedDuration),
 					}
 				})
@@ -329,8 +329,8 @@ var _ = Describe("OrderRepository", func() {
 					BeforeEach(func() {
 						initialOrderAccrual = 0.22
 
-						testData.Merge(mocks.TestOrderRepoData{
-							Orders: mocks.TestOrderMap{
+						testData.Merge(fakes.TestOrderRepoData{
+							Orders: fakes.TestOrderMap{
 								orderID: {
 									UserID:  userID,
 									Status:  domain.OrderStatusProcessed,
@@ -350,14 +350,14 @@ var _ = Describe("OrderRepository", func() {
 				whenNoTestErrorsConfigured()
 
 				whenTestErrorsAreConfigured(
-					func(testErr mocks.TestError) mocks.TestOrderRepoError {
-						return mocks.TestOrderRepoError{MarkOrderInvalid: testErr}
+					func(testErr fakes.TestError) fakes.TestOrderRepoError {
+						return fakes.TestOrderRepoError{MarkOrderInvalid: testErr}
 					},
 				)
 
 				whenTestDelaysAreConfigured(
-					func(delay time.Duration) mocks.TestOrderRepoDelay {
-						return mocks.TestOrderRepoDelay{MarkOrderInvalid: delay}
+					func(delay time.Duration) fakes.TestOrderRepoDelay {
+						return fakes.TestOrderRepoDelay{MarkOrderInvalid: delay}
 					},
 				)
 			})
@@ -385,8 +385,8 @@ var _ = Describe("OrderRepository", func() {
 				DescribeTableSubtree("order is in processed or invalid state",
 					func(status domain.OrderStatus) {
 						BeforeEach(func() {
-							testData.Merge(mocks.TestOrderRepoData{
-								Orders: mocks.TestOrderMap{
+							testData.Merge(fakes.TestOrderRepoData{
+								Orders: fakes.TestOrderMap{
 									orderID: {UserID: userID, Status: status, Accrual: initialOrderAccrual},
 								},
 							})
@@ -405,14 +405,14 @@ var _ = Describe("OrderRepository", func() {
 				whenNoTestErrorsConfigured()
 
 				whenTestErrorsAreConfigured(
-					func(testErr mocks.TestError) mocks.TestOrderRepoError {
-						return mocks.TestOrderRepoError{MarkOrderProcessing: testErr}
+					func(testErr fakes.TestError) fakes.TestOrderRepoError {
+						return fakes.TestOrderRepoError{MarkOrderProcessing: testErr}
 					},
 				)
 
 				whenTestDelaysAreConfigured(
-					func(delay time.Duration) mocks.TestOrderRepoDelay {
-						return mocks.TestOrderRepoDelay{MarkOrderProcessing: delay}
+					func(delay time.Duration) fakes.TestOrderRepoDelay {
+						return fakes.TestOrderRepoDelay{MarkOrderProcessing: delay}
 					},
 				)
 			})
@@ -436,9 +436,9 @@ var _ = Describe("OrderRepository", func() {
 			whenOrderDoesNotExist()
 
 			When("order exists", func() {
-				initTestData(func() mocks.TestOrderRepoData {
-					return mocks.TestOrderRepoData{
-						Balances: mocks.TestBalanceMap{userID: initialBalance},
+				initTestData(func() fakes.TestOrderRepoData {
+					return fakes.TestOrderRepoData{
+						Balances: fakes.TestBalanceMap{userID: initialBalance},
 					}
 				})
 
@@ -448,8 +448,8 @@ var _ = Describe("OrderRepository", func() {
 
 				Context("order is in invalid state", func() {
 					BeforeEach(func() {
-						testData.Merge(mocks.TestOrderRepoData{
-							Orders: mocks.TestOrderMap{
+						testData.Merge(fakes.TestOrderRepoData{
+							Orders: fakes.TestOrderMap{
 								orderID: {UserID: userID, Status: domain.OrderStatusInvalid},
 							},
 						})
@@ -464,8 +464,8 @@ var _ = Describe("OrderRepository", func() {
 					BeforeEach(func() {
 						initialOrderAccrual = 1.11
 
-						testData.Merge(mocks.TestOrderRepoData{
-							Orders: mocks.TestOrderMap{
+						testData.Merge(fakes.TestOrderRepoData{
+							Orders: fakes.TestOrderMap{
 								orderID: {UserID: userID, Status: targetOrderStatus, Accrual: initialOrderAccrual},
 							},
 						})
@@ -480,8 +480,8 @@ var _ = Describe("OrderRepository", func() {
 				DescribeTableSubtree("no test errors configured",
 					func(status domain.OrderStatus) {
 						BeforeEach(func() {
-							testData.Merge(mocks.TestOrderRepoData{
-								Orders: mocks.TestOrderMap{
+							testData.Merge(fakes.TestOrderRepoData{
+								Orders: fakes.TestOrderMap{
 									orderID: {UserID: userID, Status: status},
 								},
 							})
@@ -497,8 +497,8 @@ var _ = Describe("OrderRepository", func() {
 				)
 
 				whenTestErrorsAreConfigured(
-					func(testErr mocks.TestError) mocks.TestOrderRepoError {
-						return mocks.TestOrderRepoError{MarkOrderProcessed: testErr}
+					func(testErr fakes.TestError) fakes.TestOrderRepoError {
+						return fakes.TestOrderRepoError{MarkOrderProcessed: testErr}
 					},
 					func() {
 						Expect(orderRepo.GetData().Balances[userID]).To(Equal(initialBalance + targetOrderAccrual))
@@ -506,8 +506,8 @@ var _ = Describe("OrderRepository", func() {
 				)
 
 				whenTestDelaysAreConfigured(
-					func(delay time.Duration) mocks.TestOrderRepoDelay {
-						return mocks.TestOrderRepoDelay{MarkOrderProcessed: delay}
+					func(delay time.Duration) fakes.TestOrderRepoDelay {
+						return fakes.TestOrderRepoDelay{MarkOrderProcessed: delay}
 					},
 					func() {
 						Expect(orderRepo.GetData().Balances[userID]).To(Equal(initialBalance + targetOrderAccrual))

@@ -11,27 +11,28 @@ linters:
   settings:
     depguard:
       rules:
-        no_test_packages_in_prod_code:
+        no_test_packages_in_prod:
           list-mode: lax
           files:
             - "$all"
             - "!$test"
-            - "!**/mocks/**"
-            - "!**/testutil/**"
+            - "!**/internal/test/**"
           deny:
-            - pkg: github.com/onsi/ginkgo
+            - pkg: github.com/onsi/
               desc: Testing libraries are not allowed in production code
-            - pkg: github.com/onsi/gomega
+            - pkg: go.uber.org/mock/
               desc: Testing libraries are not allowed in production code
-            - pkg: go.uber.org/mock/gomock
+            - pkg: github.com/bq2cd/yp-go-gophermart/internal/test/
               desc: Testing libraries are not allowed in production code
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: true
       branch-max-lines: 4
   exclusions:
+    paths:
+      - internal/test/mocks
     rules:
-      - path: '(.+)_test\.go'
+      - path: _test\.go
         linters:
           - dupl
           - err113

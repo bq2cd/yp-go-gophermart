@@ -8,7 +8,7 @@ import (
 
 // OrderRepository is responsible for creating a new order and retrieving information about user's orders.
 //
-//go:generate go tool mockgen -typed -destination=mocks/order_repository.go -package=mocks . OrderRepository
+//go:generate mise run mockgen --outfile=order_repository.go OrderRepository
 type OrderRepository interface {
 	CreateOrder(ctx context.Context, userID domain.UserID, orderID domain.OrderID) (bool, domain.UserID, error)
 	GetOrders(ctx context.Context, userID domain.UserID) ([]domain.Order, error)
