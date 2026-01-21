@@ -1,5 +1,5 @@
 //nolint:revive,err113
-package mocks
+package fakes
 
 import (
 	"fmt"

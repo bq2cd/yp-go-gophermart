@@ -18,7 +18,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
+	mocks "github.com/bq2cd/yp-go-gophermart/internal/test/mocks/gophermart/handler"
 )
 
 /////////////////////////////////////////////////////////////////////////////////

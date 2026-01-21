@@ -6,28 +6,28 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 )
 
 type TestOrderProcessorContext struct {
 	InputOrders     []domain.OrderID
-	OrderRepoData   mocks.TestOrderRepoData
-	OrderRepoErrors mocks.TestOrderRepoErrorMap
-	OrderRepoDelays mocks.TestOrderRepoDelayMap
-	AccrualData     mocks.TestAccrualData
-	AccrualErrors   mocks.TestAccrualErrorMap
-	AccrualDelays   mocks.TestAccrualDelayMap
+	OrderRepoData   fakes.TestOrderRepoData
+	OrderRepoErrors fakes.TestOrderRepoErrorMap
+	OrderRepoDelays fakes.TestOrderRepoDelayMap
+	AccrualData     fakes.TestAccrualData
+	AccrualErrors   fakes.TestAccrualErrorMap
+	AccrualDelays   fakes.TestAccrualDelayMap
 }
 
 func NewTestOrderProcessorContext() *TestOrderProcessorContext {
 	return &TestOrderProcessorContext{
 		InputOrders:     []domain.OrderID{},
-		OrderRepoData:   mocks.TestOrderRepoData{},
-		OrderRepoErrors: mocks.TestOrderRepoErrorMap{},
-		OrderRepoDelays: mocks.TestOrderRepoDelayMap{},
-		AccrualData:     mocks.TestAccrualData{},
-		AccrualErrors:   mocks.TestAccrualErrorMap{},
-		AccrualDelays:   mocks.TestAccrualDelayMap{},
+		OrderRepoData:   fakes.TestOrderRepoData{},
+		OrderRepoErrors: fakes.TestOrderRepoErrorMap{},
+		OrderRepoDelays: fakes.TestOrderRepoDelayMap{},
+		AccrualData:     fakes.TestAccrualData{},
+		AccrualErrors:   fakes.TestAccrualErrorMap{},
+		AccrualDelays:   fakes.TestAccrualDelayMap{},
 	}
 }
 
@@ -49,8 +49,8 @@ func (pc *TestOrderProcessorContext) EnqueueOrders(orderProcessor *workers.Order
 }
 
 func (pc *TestOrderProcessorContext) SetupMocks(
-	orderRepo *mocks.TestOrderRepository,
-	accrualClient *mocks.TestAccrualClient,
+	orderRepo *fakes.TestOrderRepository,
+	accrualClient *fakes.TestAccrualClient,
 ) {
 	orderRepo.Setup(pc.OrderRepoData, pc.OrderRepoErrors, pc.OrderRepoDelays)
 	accrualClient.Setup(pc.AccrualData, pc.AccrualErrors, pc.AccrualDelays)

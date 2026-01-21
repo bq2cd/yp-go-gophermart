@@ -1,4 +1,4 @@
-package mocks_test
+package fakes_test
 
 import (
 	"slices"
@@ -7,12 +7,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 )
 
 var _ = Describe("OrderQueue", func() {
 	var (
-		queue                      *mocks.TestOrderQueue
+		queue                      *fakes.TestOrderQueue
 		poppedItems, expectedItems []workers.OrderItem
 	)
 
@@ -36,7 +36,7 @@ var _ = Describe("OrderQueue", func() {
 
 	Context("initial queue is empty", func() {
 		BeforeEach(func() {
-			queue = mocks.NewTestOrderQueue()
+			queue = fakes.NewTestOrderQueue()
 
 			Expect(queue.Len()).To(BeZero())
 			Expect(queue.CopyToSlice()).To(BeEmpty())
@@ -77,7 +77,7 @@ var _ = Describe("OrderQueue", func() {
 				{UserID: "user3", OrderID: 789},
 			}
 
-			queue = mocks.NewTestOrderQueue()
+			queue = fakes.NewTestOrderQueue()
 
 			queue.CopyFromSlice(initialItems)
 

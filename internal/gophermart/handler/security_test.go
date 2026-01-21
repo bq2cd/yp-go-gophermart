@@ -8,7 +8,7 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
+	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
 
 func testCasesForUnauthorizedUser(testCtxPtr **TestContext, testMocksPtr **TestMocks) {

@@ -33,3 +33,10 @@ run = [
   "go test -failfast -cover -coverpkg=./... -coverprofile=coverage.out ./...",
   "go tool cover -html=coverage.out",
 ]
+
+[tasks.mockgen]
+description = """
+Helper to run mockgen from //go:generate comments; it should only be invoked by 'go generate' process.
+Generated mocks are put under 'internal/test/mocks/<pkg_relative_path>' directory.
+"""
+run = "go run ./internal/test/cmd/mockgen"

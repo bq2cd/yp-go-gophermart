@@ -11,7 +11,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/mocks"
+	mocks "github.com/bq2cd/yp-go-gophermart/internal/test/mocks/gophermart/service"
 )
 
 // Ensure [service.UserManager] implements [handler.UserService].

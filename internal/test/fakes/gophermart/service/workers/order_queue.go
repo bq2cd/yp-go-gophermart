@@ -1,5 +1,5 @@
 //nolint:revive,exhaustruct
-package mocks
+package fakes
 
 import (
 	"slices"

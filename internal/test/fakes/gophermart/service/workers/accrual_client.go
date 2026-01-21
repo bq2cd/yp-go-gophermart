@@ -1,5 +1,5 @@
 //nolint:revive,wrapcheck,exhaustruct
-package mocks
+package fakes
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
-	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
+	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
 
 type TestAccrualOrder struct {

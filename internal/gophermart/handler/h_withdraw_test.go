@@ -9,8 +9,8 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/mocks"
-	"github.com/bq2cd/yp-go-gophermart/internal/testutil"
+	mocks "github.com/bq2cd/yp-go-gophermart/internal/test/mocks/gophermart/handler"
+	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
 
 var _ = Describe("Withdraw", func() {

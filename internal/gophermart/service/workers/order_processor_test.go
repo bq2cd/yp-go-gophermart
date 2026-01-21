@@ -11,7 +11,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers/mocks"
+	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 )
 
 // Ensure [workers.OrderProcessor] implements [service.OrderProcessor].
@@ -19,17 +19,17 @@ var _ service.OrderProcessor = (*workers.OrderProcessor)(nil)
 
 var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	var (
-		orderRepo             *mocks.TestOrderRepository
-		accrualClient         *mocks.TestAccrualClient
-		orderQueue            *mocks.TestOrderQueue
+		orderRepo             *fakes.TestOrderRepository
+		accrualClient         *fakes.TestAccrualClient
+		orderQueue            *fakes.TestOrderQueue
 		orderProcessorOptions []workers.OrderProcessorOption
 		orderProcessor        *workers.OrderProcessor
 	)
 
 	BeforeEach(func() {
-		orderRepo = mocks.NewTestOrderRepository()
-		accrualClient = mocks.NewTestAccrualClient()
-		orderQueue = mocks.NewTestOrderQueue()
+		orderRepo = fakes.NewTestOrderRepository()
+		accrualClient = fakes.NewTestAccrualClient()
+		orderQueue = fakes.NewTestOrderQueue()
 		orderProcessorOptions = []workers.OrderProcessorOption{}
 	})
 
@@ -108,12 +108,12 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		Context("all orders are new", func() {
 			BeforeEach(func() {
 				testCtx.InputOrders = []domain.OrderID{10_123, 10_789, 20_123, 20_456, 20_789, 30_456, 40_123, 99_999}
-				testCtx.OrderRepoData = mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				testCtx.OrderRepoData = fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 0.0,
 						"user2": 9.99,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
 						10_456: {UserID: "user1", Status: domain.OrderStatusNew},
 						10_789: {UserID: "user1", Status: domain.OrderStatusNew},
@@ -126,7 +126,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 						40_123: {UserID: "user4", Status: domain.OrderStatusNew},
 					},
 				}
-				testCtx.AccrualData = mocks.TestAccrualData{
+				testCtx.AccrualData = fakes.TestAccrualData{
 					10_123: {Status: accdomain.OrderStatusRegistered},
 					10_789: {Status: accdomain.OrderStatusProcessed, Accrual: 7.77},
 					20_123: {Status: accdomain.OrderStatusProcessing},
@@ -134,23 +134,23 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					20_789: {Status: accdomain.OrderStatusInvalid},
 					30_456: {Status: accdomain.OrderStatusRegistered},
 				}
-				testCtx.OrderRepoErrors = mocks.TestOrderRepoErrorMap{
-					10_789: {GetOrderStatus: mocks.NewTestError(2)},
-					20_456: {MarkOrderProcessing: mocks.NewTestError(1)},
-					30_456: {MarkOrderProcessing: mocks.NewTestError(0, 1)},
+				testCtx.OrderRepoErrors = fakes.TestOrderRepoErrorMap{
+					10_789: {GetOrderStatus: fakes.NewTestError(2)},
+					20_456: {MarkOrderProcessing: fakes.NewTestError(1)},
+					30_456: {MarkOrderProcessing: fakes.NewTestError(0, 1)},
 				}
-				testCtx.AccrualErrors = mocks.TestAccrualErrorMap{
-					10_123: {GetOrderStatus: mocks.NewTestError(3)},
+				testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
+					10_123: {GetOrderStatus: fakes.NewTestError(3)},
 				}
 			})
 
 			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 7.77,
 						"user2": 10.01,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusProcessing},
 						10_456: {UserID: "user1", Status: domain.OrderStatusNew},
 						10_789: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 7.77},
@@ -179,13 +179,13 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					50_789,
 					99_999,
 				}
-				testCtx.OrderRepoData = mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				testCtx.OrderRepoData = fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
 						"user2": 10.0,
 						"user4": 20.0,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusInvalid},
 						10_456: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 12.2},
 						20_123: {UserID: "user2", Status: domain.OrderStatusNew},
@@ -196,7 +196,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 						50_789: {UserID: "user5", Status: domain.OrderStatus(-99)},
 					},
 				}
-				testCtx.AccrualData = mocks.TestAccrualData{
+				testCtx.AccrualData = fakes.TestAccrualData{
 					10_123: {Status: accdomain.OrderStatusRegistered},
 					10_456: {Status: accdomain.OrderStatusProcessing},
 					20_123: {Status: accdomain.OrderStatusProcessed, Accrual: 0.0},
@@ -204,23 +204,23 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					30_123: {Status: accdomain.OrderStatus(-99)},
 					40_123: {Status: accdomain.OrderStatusProcessed, Accrual: 17.5},
 				}
-				testCtx.OrderRepoErrors = mocks.TestOrderRepoErrorMap{
-					20_456: {MarkOrderProcessed: mocks.NewTestError(2)},
-					30_123: {MarkOrderInvalid: mocks.NewTestError(2)},
+				testCtx.OrderRepoErrors = fakes.TestOrderRepoErrorMap{
+					20_456: {MarkOrderProcessed: fakes.NewTestError(2)},
+					30_123: {MarkOrderInvalid: fakes.NewTestError(2)},
 				}
-				testCtx.AccrualErrors = mocks.TestAccrualErrorMap{
-					40_123: {GetOrderStatus: mocks.NewTestError(2)},
+				testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
+					40_123: {GetOrderStatus: fakes.NewTestError(2)},
 				}
 			})
 
 			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
 						"user2": 15.55,
 						"user4": 37.5,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusInvalid},
 						10_456: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 12.2},
 						20_123: {UserID: "user2", Status: domain.OrderStatusProcessed, Accrual: 0.0},
@@ -243,38 +243,38 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					10_123,
 					20_456,
 				}
-				testCtx.OrderRepoData = mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				testCtx.OrderRepoData = fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
 						"user2": 0.0,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
 						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
 					},
 				}
-				testCtx.AccrualData = mocks.TestAccrualData{
+				testCtx.AccrualData = fakes.TestAccrualData{
 					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
 					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
 				}
-				testCtx.OrderRepoDelays = mocks.TestOrderRepoDelayMap{
+				testCtx.OrderRepoDelays = fakes.TestOrderRepoDelayMap{
 					10_123: {
 						GetOrderStatus:     20 * time.Millisecond,
 						MarkOrderProcessed: 30 * time.Millisecond,
 					},
 				}
-				testCtx.AccrualDelays = mocks.TestAccrualDelayMap{
+				testCtx.AccrualDelays = fakes.TestAccrualDelayMap{
 					10_123: {GetOrderStatus: 50 * time.Millisecond},
 				}
 			})
 
 			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 13.21,
 						"user2": 0.0,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 8.21},
 						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
 					},
@@ -296,37 +296,37 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					10_123,
 					20_456,
 				}
-				testCtx.OrderRepoData = mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				testCtx.OrderRepoData = fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
 						"user2": 0.0,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
 						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
 					},
 				}
-				testCtx.AccrualData = mocks.TestAccrualData{
+				testCtx.AccrualData = fakes.TestAccrualData{
 					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
 					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
 				}
-				testCtx.OrderRepoDelays = mocks.TestOrderRepoDelayMap{
+				testCtx.OrderRepoDelays = fakes.TestOrderRepoDelayMap{
 					10_123: {
 						GetOrderStatus: 50 * time.Millisecond,
 					},
 				}
-				testCtx.AccrualDelays = mocks.TestAccrualDelayMap{
+				testCtx.AccrualDelays = fakes.TestAccrualDelayMap{
 					20_456: {GetOrderStatus: 50 * time.Millisecond},
 				}
 			})
 
 			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(mocks.TestOrderRepoData{
-					Balances: mocks.TestBalanceMap{
+				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
 						"user2": 0.0,
 					},
-					Orders: mocks.TestOrderMap{
+					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
 						20_456: {UserID: "user1", Status: domain.OrderStatusProcessing},
 					},

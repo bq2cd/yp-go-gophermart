@@ -8,7 +8,7 @@ import (
 
 // UserService provides methods to register/authenticate a user.
 //
-//go:generate go tool mockgen -typed -destination=mocks/user_service.go -package=mocks . UserService
+//go:generate mise run mockgen --outfile=user_service.go UserService
 type UserService interface {
 	Register(ctx context.Context, userID domain.UserID, passwordPlain domain.PasswordPlain) error
 	Authenticate(ctx context.Context, userID domain.UserID, passwordPlain domain.PasswordPlain) error
@@ -16,7 +16,7 @@ type UserService interface {
 
 // TokenService provides methods to issue and validate tokens for an authenticated user.
 //
-//go:generate go tool mockgen -typed -destination=mocks/token_service.go -package=mocks . TokenService
+//go:generate mise run mockgen --outfile=token_service.go TokenService
 type TokenService interface {
 	IssueToken(ctx context.Context, userID domain.UserID) (domain.Token, error)
 	ValidateToken(ctx context.Context, token domain.Token) (domain.UserID, error)
@@ -24,7 +24,7 @@ type TokenService interface {
 
 // BalanceService provides methods to get user's balance, perform a withdrawal or list prior withdrawals.
 //
-//go:generate go tool mockgen -typed -destination=mocks/balance_service.go -package=mocks . BalanceService
+//go:generate mise run mockgen --outfile=balance_service.go BalanceService
 type BalanceService interface {
 	GetBalance(ctx context.Context, userID domain.UserID) (float64, error)
 	GetTotalAmountWithdrawn(ctx context.Context, userID domain.UserID) (float64, error)
@@ -35,7 +35,7 @@ type BalanceService interface {
 // OrderService provides methods to upload new orders into the system
 // and list prior user's orders.
 //
-//go:generate go tool mockgen -typed -destination=mocks/order_service.go -package=mocks . OrderService
+//go:generate mise run mockgen --outfile=order_service.go OrderService
 type OrderService interface {
 	CreateOrder(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error
 	GetOrders(ctx context.Context, userID domain.UserID) ([]domain.Order, error)
