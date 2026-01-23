@@ -228,7 +228,7 @@ var _ = Describe("BalanceManager", func() {
 				amount = 5.23
 
 				mockCall = balanceRepo.EXPECT().
-					WithdrawFunds(testutil.MockCtx(), userID, amount)
+					WithdrawFunds(testutil.MockCtx(), userID, orderID, amount)
 			})
 
 			When("there are enough funds", func() {

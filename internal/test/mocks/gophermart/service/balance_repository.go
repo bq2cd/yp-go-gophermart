@@ -159,18 +159,18 @@ func (c *MockBalanceRepositoryGetWithdrawalTransactionsCall) DoAndReturn(f func(
 }
 
 // WithdrawFunds mocks base method.
-func (m *MockBalanceRepository) WithdrawFunds(ctx context.Context, userID domain.UserID, amount float64) (bool, error) {
+func (m *MockBalanceRepository) WithdrawFunds(ctx context.Context, userID domain.UserID, orderID domain.OrderID, amount float64) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithdrawFunds", ctx, userID, amount)
+	ret := m.ctrl.Call(m, "WithdrawFunds", ctx, userID, orderID, amount)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // WithdrawFunds indicates an expected call of WithdrawFunds.
-func (mr *MockBalanceRepositoryMockRecorder) WithdrawFunds(ctx, userID, amount any) *MockBalanceRepositoryWithdrawFundsCall {
+func (mr *MockBalanceRepositoryMockRecorder) WithdrawFunds(ctx, userID, orderID, amount any) *MockBalanceRepositoryWithdrawFundsCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithdrawFunds", reflect.TypeOf((*MockBalanceRepository)(nil).WithdrawFunds), ctx, userID, amount)
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithdrawFunds", reflect.TypeOf((*MockBalanceRepository)(nil).WithdrawFunds), ctx, userID, orderID, amount)
 	return &MockBalanceRepositoryWithdrawFundsCall{Call: call}
 }
 
@@ -186,13 +186,13 @@ func (c *MockBalanceRepositoryWithdrawFundsCall) Return(arg0 bool, arg1 error) *
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockBalanceRepositoryWithdrawFundsCall) Do(f func(context.Context, domain.UserID, float64) (bool, error)) *MockBalanceRepositoryWithdrawFundsCall {
+func (c *MockBalanceRepositoryWithdrawFundsCall) Do(f func(context.Context, domain.UserID, domain.OrderID, float64) (bool, error)) *MockBalanceRepositoryWithdrawFundsCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockBalanceRepositoryWithdrawFundsCall) DoAndReturn(f func(context.Context, domain.UserID, float64) (bool, error)) *MockBalanceRepositoryWithdrawFundsCall {
+func (c *MockBalanceRepositoryWithdrawFundsCall) DoAndReturn(f func(context.Context, domain.UserID, domain.OrderID, float64) (bool, error)) *MockBalanceRepositoryWithdrawFundsCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

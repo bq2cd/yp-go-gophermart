@@ -13,7 +13,7 @@ import (
 //
 //go:generate mise run mockgen --outfile=balance_repository.go BalanceRepository
 type BalanceRepository interface {
-	WithdrawFunds(ctx context.Context, userID domain.UserID, amount float64) (bool, error)
+	WithdrawFunds(ctx context.Context, userID domain.UserID, orderID domain.OrderID, amount float64) (bool, error)
 	GetCurrentValue(ctx context.Context, userID domain.UserID) (float64, error)
 	GetTotalAmountWithdrawn(ctx context.Context, userID domain.UserID) (float64, error)
 	GetWithdrawalTransactions(ctx context.Context, userID domain.UserID) ([]domain.WithdrawalTransaction, error)

@@ -61,14 +61,14 @@ func (m *BalanceManager) GetWithdrawalTransactions(
 func (m *BalanceManager) PayForOrderFromBalance(
 	ctx context.Context,
 	userID domain.UserID,
-	_ domain.OrderID,
+	orderID domain.OrderID,
 	amount float64,
 ) error {
 	if amount <= 0 {
 		return ErrAmountIsNotPositive
 	}
 
-	success, err := m.balanceRepo.WithdrawFunds(ctx, userID, amount)
+	success, err := m.balanceRepo.WithdrawFunds(ctx, userID, orderID, amount)
 	if err != nil {
 		return fmt.Errorf("cannot withdraw funds: %w", err)
 	}
