@@ -32,6 +32,12 @@ linters:
     paths:
       - internal/test/mocks
     rules:
+      - path: internal/test/integration
+        linters:
+          - ireturn
+          - mnd
+          - revive
+          - wrapcheck
       - path: _test\.go
         linters:
           - dupl
