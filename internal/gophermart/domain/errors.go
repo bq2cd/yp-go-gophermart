@@ -6,6 +6,10 @@ import (
 )
 
 var (
+	// ErrUserNotFound is returned whenever we check if user with given [UserID]
+	// exists in the system and fail to find such a user.
+	ErrUserNotFound = errors.New("user with such ID does not exist")
+
 	// ErrUserIDConflict is returned during user registration process if a user already
 	// exists with given [UserID].
 	ErrUserIDConflict = errors.New("user with such ID already exists")

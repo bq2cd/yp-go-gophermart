@@ -1,9 +1,17 @@
 package domain
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // OrderID represents the ID of an [Order].
 type OrderID uint64
+
+// String converts [OrderID] to a string representation.
+func (oid OrderID) String() string {
+	return strconv.FormatUint(uint64(oid), 10)
+}
 
 // OrderStatus represent the status of an [Order].
 type OrderStatus int
