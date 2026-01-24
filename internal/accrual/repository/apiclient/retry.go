@@ -1,6 +1,10 @@
 package apiclient
 
-import "time"
+import (
+	"time"
+
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
+)
 
 const (
 	retryConfigDefaultCount       = 3
@@ -26,7 +30,7 @@ func DefaultRetryConfig() RetryConfig {
 
 // WithRetryConfig returns an option to override retry configuration
 // of a [Client].
-func WithRetryConfig(config RetryConfig) Option {
+func WithRetryConfig(config RetryConfig) option.Option[Client] {
 	return func(c *Client) {
 		c.applyRetryConfig(config)
 	}

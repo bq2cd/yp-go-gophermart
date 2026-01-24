@@ -8,6 +8,7 @@ import (
 	"resty.dev/v3"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 // Client wraps HTTP client and provides an interface to interact with an accrual system.
@@ -16,7 +17,7 @@ type Client struct {
 }
 
 // NewClient creates an instance of [Client].
-func NewClient(baseURL string, options ...Option) *Client {
+func NewClient(baseURL string, options ...option.Option[Client]) *Client {
 	client := &Client{
 		httpClient: resty.New().SetBaseURL(baseURL),
 	}

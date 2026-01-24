@@ -13,6 +13,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/repository/apiclient"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 // Ensure [apiclient.Client] implements [workers.AccrualClient] interface.
@@ -23,14 +24,14 @@ var _ = Describe("Accrual Client", func() {
 		server   *ghttp.Server
 		handlers []http.HandlerFunc
 		client   *apiclient.Client
-		options  []apiclient.Option
+		options  []option.Option[apiclient.Client]
 		err      error
 	)
 
 	BeforeEach(func() {
 		server = ghttp.NewServer()
 		handlers = []http.HandlerFunc{}
-		options = []apiclient.Option{}
+		options = []option.Option[apiclient.Client]{}
 	})
 
 	JustBeforeEach(func() {
