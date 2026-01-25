@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
+	"github.com/bq2cd/yp-go-gophermart/internal/accrual/repository/apiclient"
 	"github.com/onsi/gomega/ghttp"
 )
 
@@ -52,7 +53,14 @@ func (s *TestAccrualServer) handleRequest(out http.ResponseWriter, req *http.Req
 		return
 	}
 
-	ghttp.RespondWithJSONEncoded(http.StatusOK, order)(out, req)
+	resp, err := apiclient.ConvertOrderToOrderResponse(order)
+	if err != nil {
+		ghttp.RespondWith(http.StatusInternalServerError, nil)(out, req)
+
+		return
+	}
+
+	ghttp.RespondWithJSONEncoded(http.StatusOK, resp)(out, req)
 }
 
 func (s *TestAccrualServer) getOrder(
