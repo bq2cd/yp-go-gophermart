@@ -3,7 +3,6 @@ package fakes
 
 import (
 	"fmt"
-	"iter"
 )
 
 type TestError struct {
@@ -27,27 +26,6 @@ func NewTestError(counts ...uint) TestError {
 
 	return TestError{
 		chain: &chain,
-	}
-}
-
-func (te TestError) Iter() iter.Seq[error] {
-	return func(yield func(error) bool) {
-		if te.chain == nil {
-			yield(nil)
-
-			return
-		}
-
-		for i, wantErr := range *te.chain {
-			var err error
-			if wantErr {
-				err = fmt.Errorf("test error %d", i)
-			}
-
-			if !yield(err) {
-				return
-			}
-		}
 	}
 }
 
