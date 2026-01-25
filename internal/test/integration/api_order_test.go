@@ -11,7 +11,6 @@ import (
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/integration"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
@@ -136,7 +135,7 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 			}
 
 			BeforeAll(func() {
-				apiCtx.SetupAccrualClient(stageData.SeedAccrualData)
+				apiCtx.SetupAccrualServer(stageData.SeedAccrualData)
 
 				serverProcessingLeeway = 100 * time.Millisecond
 			})
@@ -204,7 +203,7 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 type APIStageDataOrder struct {
 	APIStageDataUser
 
-	SeedAccrualData   fakes.TestAccrualData
+	SeedAccrualData   integration.TestAccrualData
 	SeedOrders        map[string][]domain.OrderID
 	ExpectedAPIOrders map[string][]api.Order
 }

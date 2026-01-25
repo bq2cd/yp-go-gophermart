@@ -9,11 +9,11 @@ import (
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
-	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/integration"
+	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
 
-func describeOrderedAPISpec(setupStorageFn func() integration.Storage) {
+func describeOrderedAPISpec(databaseURI string) {
 	var (
 		testCtx *integration.TestContext
 	)
@@ -31,7 +31,7 @@ func describeOrderedAPISpec(setupStorageFn func() integration.Storage) {
 
 	stageDataOrder := APIStageDataOrder{
 		APIStageDataUser: stageDataUser,
-		SeedAccrualData: fakes.TestAccrualData{
+		SeedAccrualData: integration.TestAccrualData{
 			1001239: {Status: accdomain.OrderStatusRegistered},
 			1003458: {Status: accdomain.OrderStatusProcessing},
 			1005677: {Status: accdomain.OrderStatusProcessed, Accrual: 0.0},
@@ -124,11 +124,15 @@ func describeOrderedAPISpec(setupStorageFn func() integration.Storage) {
 
 	Describe("HTTP API", Ordered, func() {
 		BeforeAll(func() {
-			storage := setupStorageFn()
+			listenAddr := getRandomListenAddress()
 
-			testCtx = integration.SetupTestContext(storage)
+			testCtx = integration.SetupTestContext(listenAddr, databaseURI)
 
-			DeferCleanup(testCtx.StopHTTPServer)
+			stopFn := testCtx.Start(GinkgoT().Context())
+
+			DeferCleanup(func() {
+				Expect(stopFn()).To(Succeed())
+			})
 		})
 
 		describeOrderedAPIUserSpec(
@@ -158,6 +162,15 @@ func describeOrderedAPISpec(setupStorageFn func() integration.Storage) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////
+
+func getRandomListenAddress() string {
+	GinkgoHelper()
+
+	addr, err := testutil.GetRandomListenAddress(GinkgoT().Context())
+	Expect(err).To(Succeed())
+
+	return addr
+}
 
 func expectHTTPResponseWithStatus(resp *integration.APIResponse, err error, expectedStatus int) {
 	Expect(err).To(Succeed())

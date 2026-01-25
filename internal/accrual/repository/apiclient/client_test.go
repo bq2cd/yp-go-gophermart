@@ -13,6 +13,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/repository/apiclient"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 // Ensure [apiclient.Client] implements [workers.AccrualClient] interface.
@@ -23,14 +24,14 @@ var _ = Describe("Accrual Client", func() {
 		server   *ghttp.Server
 		handlers []http.HandlerFunc
 		client   *apiclient.Client
-		options  []apiclient.Option
+		options  []option.Option[apiclient.Client]
 		err      error
 	)
 
 	BeforeEach(func() {
 		server = ghttp.NewServer()
 		handlers = []http.HandlerFunc{}
-		options = []apiclient.Option{}
+		options = []option.Option[apiclient.Client]{}
 	})
 
 	JustBeforeEach(func() {
@@ -77,7 +78,7 @@ var _ = Describe("Accrual Client", func() {
 				}
 
 				handlers = append(handlers,
-					ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+					ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 				)
 			})
 
@@ -160,7 +161,7 @@ var _ = Describe("Accrual Client", func() {
 					server.AppendHandlers(
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 					)
 				})
 
@@ -175,7 +176,7 @@ var _ = Describe("Accrual Client", func() {
 
 					server.AppendHandlers(
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 					)
 				})
 
@@ -213,4 +214,13 @@ type faultyRoundTripper struct{}
 
 func (rt *faultyRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return nil, errors.New("some network error")
+}
+
+func convertToOrderResponse(order domain.Order) apiclient.OrderResponse {
+	GinkgoHelper()
+
+	resp, err := apiclient.ConvertOrderToOrderResponse(order)
+	Expect(err).To(Succeed())
+
+	return resp
 }

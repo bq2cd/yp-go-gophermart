@@ -3,23 +3,22 @@ package integration
 import (
 	"context"
 
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
-	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/app"
 )
 
 type APITestContext struct {
 	APIClient       *APIClient
 	SecureAPIClient *SecureAPIClient
-	accrualClient   *fakes.TestAccrualClient
-	orderProcessor  *workers.OrderProcessor
+	accrualServer   *TestAccrualServer
+	orderProcessor  *app.OrderProcessor
 }
 
-func (c *APITestContext) SetupAccrualClient(data fakes.TestAccrualData) {
-	c.accrualClient.Setup(data, fakes.TestAccrualErrorMap{}, fakes.TestAccrualDelayMap{})
+func (c *APITestContext) SetupAccrualServer(data TestAccrualData) {
+	c.accrualServer.SetupData(data)
 }
 
 func (c *APITestContext) StartOrderProcessing(ctx context.Context) {
-	go c.orderProcessor.Run(ctx)
+	go c.orderProcessor.Run(ctx) //nolint:errcheck // Error is never returned.
 }
 
 func (c *APITestContext) HasOrderProcessingFinished() bool {
