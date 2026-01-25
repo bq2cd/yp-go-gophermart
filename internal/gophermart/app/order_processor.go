@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 )
@@ -18,6 +19,8 @@ type OrderProcessor struct {
 // does not return anything.
 // The method provides such signature to match [Thread] interface.
 func (p *OrderProcessor) Run(ctx context.Context) error {
+	slog.DebugContext(ctx, "starting order processor")
+
 	p.processor.Run(ctx)
 
 	return nil

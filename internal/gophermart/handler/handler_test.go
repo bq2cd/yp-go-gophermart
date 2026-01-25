@@ -72,6 +72,7 @@ type TestContext struct {
 	Router          *gin.Engine
 	Recorder        *httptest.ResponseRecorder
 	Request         *TestRequest
+	httpResponse    *http.Response
 }
 
 func InitTestContext() *TestContext {
@@ -97,14 +98,24 @@ func (c *TestContext) ProcessRequest() {
 	maps.Copy(request.Header, c.Request.Header)
 
 	c.Router.ServeHTTP(c.Recorder, request)
+
+	// Stupid bodyclose linter from
+	// https://github.com/Yandex-Practicum/go-autotests/blob/main/cmd/statictest/main.go#L120
+	// is being too picky about closing HTTP responses even in tests.
+	// Yet, golangci-lint with bodyclose linter enabled, does not pick on that.
+	// Somebody really needs to upgrade their linters...
+	resp := c.Recorder.Result()
+	defer resp.Body.Close() //nolint:errcheck
+
+	c.httpResponse = resp
 }
 
 func (c *TestContext) GetStatusCode() int {
-	return c.Recorder.Result().StatusCode
+	return c.httpResponse.StatusCode
 }
 
 func (c *TestContext) GetHeaderValue(name string) string {
-	return c.Recorder.Result().Header.Get(name)
+	return c.httpResponse.Header.Get(name)
 }
 
 func (c *TestContext) GetBodyBytes() []byte {
