@@ -78,7 +78,7 @@ var _ = Describe("Accrual Client", func() {
 				}
 
 				handlers = append(handlers,
-					ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+					ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 				)
 			})
 
@@ -161,7 +161,7 @@ var _ = Describe("Accrual Client", func() {
 					server.AppendHandlers(
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 					)
 				})
 
@@ -176,7 +176,7 @@ var _ = Describe("Accrual Client", func() {
 
 					server.AppendHandlers(
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, expectedOrder),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 					)
 				})
 
@@ -214,4 +214,13 @@ type faultyRoundTripper struct{}
 
 func (rt *faultyRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
 	return nil, errors.New("some network error")
+}
+
+func convertToOrderResponse(order domain.Order) apiclient.OrderResponse {
+	GinkgoHelper()
+
+	resp, err := apiclient.ConvertOrderToOrderResponse(order)
+	Expect(err).To(Succeed())
+
+	return resp
 }

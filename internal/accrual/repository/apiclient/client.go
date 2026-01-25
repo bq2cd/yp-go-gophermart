@@ -3,6 +3,7 @@ package apiclient
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"resty.dev/v3"
@@ -39,30 +40,38 @@ func NewClient(baseURL string, options ...option.Option[Client]) *Client {
 func (c *Client) GetOrderStatus(ctx context.Context, orderID domain.OrderID) (domain.Order, error) {
 	var order domain.Order
 
-	resp, err := c.sendGetOrderStatusRequest(ctx, orderID, &order)
+	resp, err := c.sendGetOrderStatusRequest(ctx, orderID)
 	if err != nil {
 		return order, err
 	}
 
-	err = c.processGetOrderStatusResponse(resp)
+	orderResp, err := c.processGetOrderStatusResponse(resp)
 	if err != nil {
 		return order, err
 	}
 
-	return order, nil
+	return orderResp.ToOrder()
 }
 
 func (c *Client) sendGetOrderStatusRequest(
 	ctx context.Context,
 	orderID domain.OrderID,
-	result *domain.Order,
 ) (*resty.Response, error) {
+	var result OrderResponse
+
 	req := c.httpClient.R().
 		WithContext(ctx).
 		SetPathParam("orderId", orderID.String()).
 		SetResult(result)
 
 	resp, err := req.Get("/api/orders/{orderId}")
+
+	slog.DebugContext(ctx, "accrual system response",
+		slog.Uint64("order_id", uint64(orderID)),
+		slog.Int("status_code", resp.StatusCode()),
+		slog.Any("error", err),
+	)
+
 	if err != nil {
 		return resp, fmt.Errorf("cannot send HTTP request: %w", err)
 	}
@@ -70,16 +79,23 @@ func (c *Client) sendGetOrderStatusRequest(
 	return resp, nil
 }
 
-func (c *Client) processGetOrderStatusResponse(resp *resty.Response) error {
+func (c *Client) processGetOrderStatusResponse(resp *resty.Response) (OrderResponse, error) {
+	var orderResp OrderResponse
+
 	switch resp.StatusCode() {
 	case http.StatusOK:
-		return nil
+		orderRespPtr, ok := resp.Result().(*OrderResponse)
+		if !ok {
+			return orderResp, ErrUnexpectedAPIResultType
+		}
+
+		return *orderRespPtr, nil
 	case http.StatusNoContent:
-		return domain.ErrOrderNotFound
+		return orderResp, domain.ErrOrderNotFound
 	case http.StatusTooManyRequests:
-		return domain.ErrRateLimitExceeded
+		return orderResp, domain.ErrRateLimitExceeded
 	default:
-		return fmt.Errorf("%w: %s", ErrUnexpectedHTTPStatus, resp.Status())
+		return orderResp, fmt.Errorf("%w: %s", ErrUnexpectedHTTPStatus, resp.Status())
 	}
 }
 
