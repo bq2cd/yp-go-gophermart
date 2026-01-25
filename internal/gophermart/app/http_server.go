@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -55,6 +56,8 @@ func NewHTTPServer(addr string, handler http.Handler, opts ...option.Option[HTTP
 // When the context is canceled, it will perform a graceful shutdown
 // of the HTTP server.
 func (s *HTTPServer) Run(ctx context.Context) error {
+	slog.DebugContext(ctx, "starting http server")
+
 	errCh := s.startServer()
 
 	return s.waitForShutdown(ctx, errCh)

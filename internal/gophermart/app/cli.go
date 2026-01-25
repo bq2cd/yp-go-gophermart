@@ -12,22 +12,15 @@ import (
 // CLIVars defines variables to use in [CLI] field tags for CLI parser to perform interpolation.
 func CLIVars() map[string]string {
 	return map[string]string{
-		"listen_address_help": `
-Address and port to start HTTP server at.
-Example: 'localhost:8080'
-`,
-		"database_uri_help": `
-Database URI to connect to.
-Example: 'postgres://user:password@localhost:5432/testdb'
-`,
-		"accrual_system_address_help": `
-Address and port of the accrual system server.
-Example: 'localhost:8081'
-`,
-		"secret_key_file_help": `
-Path to a file with secret key for JWT tokens.
-Example: './secret_key.txt'
-`,
+		"debug_help": `Enable debug logging.`,
+		"listen_address_help": `Address and port to start HTTP server at.
+Example: 'localhost:8080'`,
+		"database_uri_help": `Database URI to connect to.
+Example: 'postgres://user:password@localhost:5432/testdb'`,
+		"accrual_system_address_help": `Address and port of the accrual system server.
+Example: 'localhost:8081'`,
+		"secret_key_file_help": `Path to a file with secret key for JWT tokens.
+Example: './secret_key.txt'`,
 	}
 }
 
@@ -36,14 +29,17 @@ Example: './secret_key.txt'
 //
 //nolint:lll,tagalign
 type CLI struct {
-	ListenAddress        string `env:"RUN_ADDRESS"            short:"a" default:"localhost:8080" help:"${listen_address_help}"`
-	DatabaseURI          string `env:"DATABASE_URI"           short:"d"                          help:"${database_uri_help}"`
-	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS" short:"r"                          help:"${accrual_system_address_help}" required:""`
-	SecretKeyFile        string `env:"SECRET_KEY_FILE"                                           help:"${secret_key_file_help}"                    type:"existingfile"`
+	Debug                bool   `env:"DEBUG"                  help:"${debug_help}"`
+	ListenAddress        string `env:"RUN_ADDRESS"            help:"${listen_address_help}"         short:"a" default:"localhost:8080"`
+	DatabaseURI          string `env:"DATABASE_URI"           help:"${database_uri_help}"           short:"d"`
+	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS" help:"${accrual_system_address_help}" short:"r"                          required:""`
+	SecretKeyFile        string `env:"SECRET_KEY_FILE"        help:"${secret_key_file_help}"                                                       type:"existingfile"`
 }
 
 // Run launches main process of the application.
 func (c *CLI) Run(ctx context.Context) error {
+	setupLogger(c.Debug)
+
 	app, err := c.createApp() //nolint:contextcheck
 	if err != nil {
 		return err
