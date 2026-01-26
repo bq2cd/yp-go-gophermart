@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gammazero/deque"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -21,7 +22,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	var (
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
-		orderQueue            *fakes.TestOrderQueue
+		orderQueue            *deque.Deque[workers.OrderItem]
 		orderProcessorOptions []workers.OrderProcessorOption
 		orderProcessor        *workers.OrderProcessor
 	)
@@ -29,7 +30,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	BeforeEach(func() {
 		orderRepo = fakes.NewTestOrderRepository()
 		accrualClient = fakes.NewTestAccrualClient()
-		orderQueue = fakes.NewTestOrderQueue()
+		orderQueue = new(deque.Deque[workers.OrderItem])
 		orderProcessorOptions = []workers.OrderProcessorOption{}
 	})
 
