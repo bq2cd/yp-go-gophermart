@@ -160,7 +160,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 						30_123: {UserID: "user3", Status: domain.OrderStatusNew},
 						30_456: {UserID: "user3", Status: domain.OrderStatusProcessing},
 						30_789: {UserID: "user3", Status: domain.OrderStatusNew},
-						40_123: {UserID: "user4", Status: domain.OrderStatusInvalid},
+						40_123: {UserID: "user4", Status: domain.OrderStatusNew},
 					},
 				})
 			})
@@ -328,7 +328,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					},
 					Orders: fakes.TestOrderMap{
 						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
-						20_456: {UserID: "user1", Status: domain.OrderStatusProcessing},
+						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
 					},
 				})
 			})

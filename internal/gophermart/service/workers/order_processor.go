@@ -3,6 +3,7 @@ package workers
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -235,25 +236,28 @@ func (p *OrderProcessor) processGetOrderStatusError(item OrderItem, err error) {
 }
 
 func (p *OrderProcessor) shouldProcessOrderStatus(ctx context.Context, item OrderItem, status domain.OrderStatus) bool {
+	var isEligible bool
+
 	switch status {
-	case domain.OrderStatusNew:
-		return p.markOrderProcessing(ctx, item.UserID, item.OrderID)
-	case domain.OrderStatusProcessing:
-		return true
+	case domain.OrderStatusNew, domain.OrderStatusProcessing:
+		isEligible = true
 	case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
-		return false
-	default:
-		return false
+		isEligible = false
 	}
+
+	slog.DebugContext(ctx, "order eligibility for processing",
+		slog.Group("order",
+			slog.Uint64("id", uint64(item.OrderID)),
+			slog.String("user", string(item.UserID)),
+			slog.Int("status", int(status)),
+		),
+		slog.Bool("is_eligible", isEligible),
+	)
+
+	return isEligible
 }
 
-func (p *OrderProcessor) processAccrualClientError(ctx context.Context, item OrderItem, err error) {
-	if errors.Is(err, accdomain.ErrOrderNotFound) {
-		p.markOrderInvalid(ctx, item.UserID, item.OrderID)
-
-		return
-	}
-
+func (p *OrderProcessor) processAccrualClientError(_ context.Context, item OrderItem, _ error) {
 	p.retryItem(item)
 }
 
