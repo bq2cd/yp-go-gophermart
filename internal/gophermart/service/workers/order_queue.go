@@ -1,23 +1,20 @@
 package workers
 
-import (
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
-)
-
-// OrderItem represent an internal piece of work for the [OrderProcessor].
-type OrderItem struct {
-	UserID  domain.UserID
-	OrderID domain.OrderID
-}
+import "github.com/gammazero/deque"
 
 // OrderQueue defines an in-memory queue as a buffer for
-// incoming [OrderItem] items.
+// incoming [OrderEvent] events.
 // This queue is assumed to be not thread-safe, so it needs
 // to be protected with locks.
 type OrderQueue interface {
-	PushBack(item OrderItem)
+	PushBack(event OrderEvent)
 	// PopFront panics on empty queue.
 	// Use [Len] method to check if queue is empty.
-	PopFront() OrderItem
+	PopFront() OrderEvent
 	Len() int
+}
+
+// NewOrderQueue returns a concrete implementation of [OrderQueue] interface.
+func NewOrderQueue() *deque.Deque[OrderEvent] {
+	return new(deque.Deque[OrderEvent])
 }

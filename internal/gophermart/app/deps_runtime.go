@@ -1,7 +1,6 @@
 package app
 
 import (
-	"github.com/gammazero/deque"
 	"github.com/gin-gonic/gin"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler"
@@ -57,7 +56,7 @@ func (b *runtimeBuilder) Build() RuntimeDeps {
 }
 
 func (b *runtimeBuilder) buildOrderServiceAndProcessor() (*service.OrderManager, *OrderProcessor) {
-	queue := new(deque.Deque[workers.OrderItem])
+	queue := workers.NewOrderQueue()
 	processor := workers.NewOrderProcessor(b.infra.Storage, queue, b.infra.AccrualClient)
 
 	orderService := service.NewOrderManager(b.infra.Storage, processor)

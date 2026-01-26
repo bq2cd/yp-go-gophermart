@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	orderProcessorDefaultPerItemTimeout  = 2 * time.Second
+	orderProcessorDefaultPerEventTimeout = 2 * time.Second
 	orderProcessorDefaultShutdownTimeout = 5 * time.Second
 )
 
@@ -25,7 +25,7 @@ type OrderProcessor struct {
 	orderRepo       OrderRepository
 	queue           OrderQueue
 	accrualClient   AccrualClient
-	perItemTimeout  time.Duration
+	perEventTimeout time.Duration
 	shutdownTimeout time.Duration
 	mu              sync.Mutex
 	notifyCh        chan struct{}
@@ -43,7 +43,7 @@ func NewOrderProcessor(
 		orderRepo:       orderRepository,
 		queue:           orderQueue,
 		accrualClient:   accrualClient,
-		perItemTimeout:  orderProcessorDefaultPerItemTimeout,
+		perEventTimeout: orderProcessorDefaultPerEventTimeout,
 		shutdownTimeout: orderProcessorDefaultShutdownTimeout,
 		mu:              sync.Mutex{},
 		notifyCh:        make(chan struct{}, 1),
@@ -56,11 +56,11 @@ func NewOrderProcessor(
 	return processor
 }
 
-// WithOrderProcessorPerItemTimeout returns an option to configure
-// processing timeout per item.
-func WithOrderProcessorPerItemTimeout(timeout time.Duration) OrderProcessorOption {
+// WithOrderProcessorPerEventTimeout returns an option to configure
+// processing timeout per order event.
+func WithOrderProcessorPerEventTimeout(timeout time.Duration) OrderProcessorOption {
 	return func(p *OrderProcessor) {
-		p.perItemTimeout = timeout
+		p.perEventTimeout = timeout
 	}
 }
 
@@ -74,15 +74,15 @@ func WithOrderProcessorShutdownTimeout(timeout time.Duration) OrderProcessorOpti
 
 // EnqueueOrder puts given order ID into in-memory queue for further processing.
 func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.OrderID) bool {
-	item := OrderItem{
-		UserID:  userID,
-		OrderID: orderID,
+	event := OrderEvent{
+		userID:  userID,
+		orderID: orderID,
 	}
 
-	return p.enqueueItem(item)
+	return p.enqueueEvent(event)
 }
 
-// Run launches an infinite loop which consumes [OrderItem] items from
+// Run launches an infinite loop which consumes [OrderEvent] events from
 // an internal channel and processes them.
 // This method should be called from a goroutine.
 func (p *OrderProcessor) Run(ctx context.Context) {
@@ -101,7 +101,7 @@ func (p *OrderProcessor) IsClosed() bool {
 }
 
 // HasFinished returns [true] when [OrderProcessor] finishes
-// processing of all enqueued items after it has been shutdown.
+// processing of all enqueued events after it has been shutdown.
 // It is primarily used in tests.
 func (p *OrderProcessor) HasFinished() bool {
 	p.mu.Lock()
@@ -110,7 +110,7 @@ func (p *OrderProcessor) HasFinished() bool {
 	return p.queue.Len() == 0
 }
 
-func (p *OrderProcessor) enqueueItem(item OrderItem) bool {
+func (p *OrderProcessor) enqueueEvent(event OrderEvent) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -118,7 +118,7 @@ func (p *OrderProcessor) enqueueItem(item OrderItem) bool {
 		return false
 	}
 
-	p.queue.PushBack(item)
+	p.queue.PushBack(event)
 	p.notifyMainLoop()
 
 	return true
@@ -157,33 +157,33 @@ func (p *OrderProcessor) setIsClosed() {
 
 func (p *OrderProcessor) processQueue(ctx context.Context) {
 	var (
-		item OrderItem
-		ok   bool
+		event OrderEvent
+		ok    bool
 	)
 
 	for {
-		item, ok = p.nextItem()
+		event, ok = p.nextEvent()
 		if !ok {
 			break
 		}
 
-		p.processItem(ctx, item)
+		p.processEvent(ctx, event)
 	}
 }
 
-func (p *OrderProcessor) nextItem() (OrderItem, bool) {
+func (p *OrderProcessor) nextEvent() (OrderEvent, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.queue.Len() == 0 {
 		//nolint:exhaustruct
-		return OrderItem{}, false
+		return OrderEvent{}, false
 	}
 
 	return p.queue.PopFront(), true
 }
 
-// shutdown processes any remaining items in the [OrderQueue] while respecting
+// shutdown processes any remaining events in the [OrderQueue] while respecting
 // [shutdownTimeout].
 func (p *OrderProcessor) shutdown(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.shutdownTimeout)
@@ -192,50 +192,54 @@ func (p *OrderProcessor) shutdown(ctx context.Context) {
 	p.processQueue(shutdownCtx)
 }
 
-func (p *OrderProcessor) processItem(baseCtx context.Context, item OrderItem) {
-	ctx, cancel := context.WithTimeout(baseCtx, p.perItemTimeout)
+func (p *OrderProcessor) processEvent(baseCtx context.Context, event OrderEvent) {
+	ctx, cancel := context.WithTimeout(baseCtx, p.perEventTimeout)
 	defer cancel()
 
-	if !p.shouldProcessItem(ctx, item) {
+	if !p.shouldProcessEvent(ctx, event) {
 		return
 	}
 
-	accOrder, err := p.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(item.OrderID))
+	accOrder, err := p.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
 	if err != nil {
-		p.processAccrualClientError(ctx, item, err)
+		p.processAccrualClientError(ctx, event, err)
 
 		return
 	}
 
-	p.processAccrualClientOrder(ctx, item.UserID, accOrder)
+	p.processAccrualClientOrder(ctx, event.userID, accOrder)
 }
 
-func (p *OrderProcessor) shouldProcessItem(ctx context.Context, item OrderItem) bool {
+func (p *OrderProcessor) shouldProcessEvent(ctx context.Context, event OrderEvent) bool {
 	select {
 	case <-ctx.Done():
 		return false
 	default:
 	}
 
-	status, err := p.orderRepo.GetOrderStatus(ctx, item.UserID, item.OrderID)
+	status, err := p.orderRepo.GetOrderStatus(ctx, event.userID, event.orderID)
 	if err != nil {
-		p.processGetOrderStatusError(item, err)
+		p.processGetOrderStatusError(event, err)
 
 		return false
 	}
 
-	return p.shouldProcessOrderStatus(ctx, item, status)
+	return p.shouldProcessOrderStatus(ctx, event, status)
 }
 
-func (p *OrderProcessor) processGetOrderStatusError(item OrderItem, err error) {
+func (p *OrderProcessor) processGetOrderStatusError(event OrderEvent, err error) {
 	if errors.Is(err, domain.ErrOrderNotFound) {
 		return
 	}
 
-	p.enqueueItem(item)
+	p.enqueueEvent(event)
 }
 
-func (p *OrderProcessor) shouldProcessOrderStatus(ctx context.Context, item OrderItem, status domain.OrderStatus) bool {
+func (p *OrderProcessor) shouldProcessOrderStatus(
+	ctx context.Context,
+	event OrderEvent,
+	status domain.OrderStatus,
+) bool {
 	var isEligible bool
 
 	switch status {
@@ -247,8 +251,8 @@ func (p *OrderProcessor) shouldProcessOrderStatus(ctx context.Context, item Orde
 
 	slog.DebugContext(ctx, "order eligibility for processing",
 		slog.Group("order",
-			slog.Uint64("id", uint64(item.OrderID)),
-			slog.String("user", string(item.UserID)),
+			slog.Uint64("id", uint64(event.orderID)),
+			slog.String("user", string(event.userID)),
 			slog.Int("status", int(status)),
 		),
 		slog.Bool("is_eligible", isEligible),
@@ -257,8 +261,8 @@ func (p *OrderProcessor) shouldProcessOrderStatus(ctx context.Context, item Orde
 	return isEligible
 }
 
-func (p *OrderProcessor) processAccrualClientError(_ context.Context, item OrderItem, _ error) {
-	p.retryItem(item)
+func (p *OrderProcessor) processAccrualClientError(_ context.Context, event OrderEvent, _ error) {
+	p.retryEvent(event)
 }
 
 func (p *OrderProcessor) processAccrualClientOrder(
@@ -311,14 +315,14 @@ func (p *OrderProcessor) markOrderProcessed(
 }
 
 func (p *OrderProcessor) retryOrder(userID domain.UserID, orderID domain.OrderID) {
-	item := OrderItem{
-		UserID:  userID,
-		OrderID: orderID,
+	event := OrderEvent{
+		userID:  userID,
+		orderID: orderID,
 	}
 
-	p.retryItem(item)
+	p.retryEvent(event)
 }
 
-func (p *OrderProcessor) retryItem(item OrderItem) {
-	p.enqueueItem(item)
+func (p *OrderProcessor) retryEvent(event OrderEvent) {
+	p.enqueueEvent(event)
 }

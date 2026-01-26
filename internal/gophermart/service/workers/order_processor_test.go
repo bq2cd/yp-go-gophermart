@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gammazero/deque"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -22,7 +21,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	var (
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
-		orderQueue            *deque.Deque[workers.OrderItem]
+		orderQueue            workers.OrderQueue
 		orderProcessorOptions []workers.OrderProcessorOption
 		orderProcessor        *workers.OrderProcessor
 	)
@@ -30,7 +29,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	BeforeEach(func() {
 		orderRepo = fakes.NewTestOrderRepository()
 		accrualClient = fakes.NewTestAccrualClient()
-		orderQueue = new(deque.Deque[workers.OrderItem])
+		orderQueue = workers.NewOrderQueue()
 		orderProcessorOptions = []workers.OrderProcessorOption{}
 	})
 
@@ -284,12 +283,12 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 		})
 
-		Context("overriding shutdown/per-item timeouts", func() {
+		Context("overriding shutdown/per-event timeouts", func() {
 			BeforeEach(func() {
 				runTimeout = 500 * time.Millisecond
 
 				orderProcessorOptions = []workers.OrderProcessorOption{
-					workers.WithOrderProcessorPerItemTimeout(25 * time.Millisecond),
+					workers.WithOrderProcessorPerEventTimeout(25 * time.Millisecond),
 					workers.WithOrderProcessorShutdownTimeout(50 * time.Millisecond),
 				}
 
