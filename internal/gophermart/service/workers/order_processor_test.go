@@ -12,6 +12,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 // Ensure [workers.OrderProcessor] implements [service.OrderProcessor].
@@ -22,7 +23,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
 		orderQueue            workers.OrderQueue
-		orderProcessorOptions []workers.OrderProcessorOption
+		orderProcessorOptions []option.Option[workers.OrderProcessor]
 		orderProcessor        *workers.OrderProcessor
 	)
 
@@ -30,7 +31,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		orderRepo = fakes.NewTestOrderRepository()
 		accrualClient = fakes.NewTestAccrualClient()
 		orderQueue = workers.NewOrderQueue()
-		orderProcessorOptions = []workers.OrderProcessorOption{}
+		orderProcessorOptions = []option.Option[workers.OrderProcessor]{}
 	})
 
 	JustBeforeEach(func() {
@@ -287,10 +288,10 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 			BeforeEach(func() {
 				runTimeout = 500 * time.Millisecond
 
-				orderProcessorOptions = []workers.OrderProcessorOption{
-					workers.WithOrderProcessorPerEventTimeout(25 * time.Millisecond),
-					workers.WithOrderProcessorShutdownTimeout(50 * time.Millisecond),
-				}
+				orderProcessorOptions = append(orderProcessorOptions,
+					workers.WithOrderProcessorPerEventTimeout(25*time.Millisecond),
+					workers.WithOrderProcessorShutdownTimeout(50*time.Millisecond),
+				)
 
 				testCtx.InputOrders = []domain.OrderID{
 					10_123,

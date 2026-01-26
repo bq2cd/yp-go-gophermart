@@ -9,16 +9,13 @@ import (
 
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 const (
 	orderProcessorDefaultPerEventTimeout = 2 * time.Second
 	orderProcessorDefaultShutdownTimeout = 5 * time.Second
 )
-
-// OrderProcessorOption defines an option type
-// that can be used to configure [OrderProcessor].
-type OrderProcessorOption func(*OrderProcessor)
 
 // OrderProcessor implements [service.OrderProcessor].
 type OrderProcessor struct {
@@ -37,7 +34,7 @@ func NewOrderProcessor(
 	orderRepository OrderRepository,
 	orderQueue OrderQueue,
 	accrualClient AccrualClient,
-	options ...OrderProcessorOption,
+	options ...option.Option[OrderProcessor],
 ) *OrderProcessor {
 	processor := &OrderProcessor{
 		orderRepo:       orderRepository,
@@ -58,7 +55,7 @@ func NewOrderProcessor(
 
 // WithOrderProcessorPerEventTimeout returns an option to configure
 // processing timeout per order event.
-func WithOrderProcessorPerEventTimeout(timeout time.Duration) OrderProcessorOption {
+func WithOrderProcessorPerEventTimeout(timeout time.Duration) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
 		p.perEventTimeout = timeout
 	}
@@ -66,7 +63,7 @@ func WithOrderProcessorPerEventTimeout(timeout time.Duration) OrderProcessorOpti
 
 // WithOrderProcessorShutdownTimeout returns an option to configure
 // total timeout for a graceful shutdown of the [OrderProcessor].
-func WithOrderProcessorShutdownTimeout(timeout time.Duration) OrderProcessorOption {
+func WithOrderProcessorShutdownTimeout(timeout time.Duration) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
 		p.shutdownTimeout = timeout
 	}
