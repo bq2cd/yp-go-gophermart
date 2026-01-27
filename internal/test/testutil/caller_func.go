@@ -27,3 +27,15 @@ func FunctionBasename(frame runtime.Frame) string {
 
 	return parts[len(parts)-1]
 }
+
+// FunctionLastname returns the last N parts after a dot of the fully-qualified function name.
+func FunctionLastname(frame runtime.Frame, last int) string {
+	parts := strings.Split(frame.Function, ".")
+	plen := len(parts)
+
+	if plen > last {
+		parts = parts[plen-last : plen]
+	}
+
+	return strings.Join(parts, ".")
+}

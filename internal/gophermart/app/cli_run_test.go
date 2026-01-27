@@ -30,7 +30,9 @@ var _ = Describe("Cli Run", func() {
 			ListenAddress: addr,
 		}
 
-		httpClient = resty.New().SetBaseURL("http://" + addr)
+		httpClient = resty.New().
+			SetBaseURL("http://" + addr).
+			SetDisableWarn(true)
 	})
 
 	runAppFn := func(verifyRunning func()) error {
