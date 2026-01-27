@@ -2,12 +2,10 @@ package workers
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
-	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
@@ -15,18 +13,20 @@ import (
 const (
 	orderProcessorDefaultPerEventTimeout = 2 * time.Second
 	orderProcessorDefaultShutdownTimeout = 5 * time.Second
+	orderProcessorDefaultWorkerPoolSize  = 2
 )
 
 // OrderProcessor implements [service.OrderProcessor].
 type OrderProcessor struct {
-	orderRepo       OrderRepository
-	queue           OrderQueue
-	accrualClient   AccrualClient
-	perEventTimeout time.Duration
-	shutdownTimeout time.Duration
 	mu              sync.Mutex
+	queue           OrderQueue
 	notifyCh        chan struct{}
+	doneCh          chan struct{}
+	callbackCh      <-chan orderEventResult
 	isClosed        bool
+	workerPool      *orderEventWorkerPool
+	shutdownTimeout time.Duration
+	eventsInFlight  uint64
 }
 
 // NewOrderProcessor creates an instance of [OrderProcessor].
@@ -36,15 +36,18 @@ func NewOrderProcessor(
 	accrualClient AccrualClient,
 	options ...option.Option[OrderProcessor],
 ) *OrderProcessor {
+	workerPool := newOrderEventWorkerPool(orderRepository, accrualClient)
+
 	processor := &OrderProcessor{
-		orderRepo:       orderRepository,
-		queue:           orderQueue,
-		accrualClient:   accrualClient,
-		perEventTimeout: orderProcessorDefaultPerEventTimeout,
-		shutdownTimeout: orderProcessorDefaultShutdownTimeout,
 		mu:              sync.Mutex{},
+		queue:           orderQueue,
 		notifyCh:        make(chan struct{}, 1),
+		doneCh:          nil,
+		callbackCh:      nil,
 		isClosed:        false,
+		workerPool:      workerPool,
+		shutdownTimeout: orderProcessorDefaultShutdownTimeout,
+		eventsInFlight:  0,
 	}
 	for _, opt := range options {
 		opt(processor)
@@ -57,7 +60,7 @@ func NewOrderProcessor(
 // processing timeout per order event.
 func WithOrderProcessorPerEventTimeout(timeout time.Duration) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
-		p.perEventTimeout = timeout
+		p.workerPool.SetPerEventTimeout(timeout)
 	}
 }
 
@@ -66,6 +69,14 @@ func WithOrderProcessorPerEventTimeout(timeout time.Duration) option.Option[Orde
 func WithOrderProcessorShutdownTimeout(timeout time.Duration) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
 		p.shutdownTimeout = timeout
+	}
+}
+
+// WithOrderProcessorWorkerPoolSize returns an option to configure
+// worker pool size for event processing.
+func WithOrderProcessorWorkerPoolSize(size uint) option.Option[OrderProcessor] {
+	return func(p *OrderProcessor) {
+		p.workerPool.SetPoolSize(size)
 	}
 }
 
@@ -83,6 +94,7 @@ func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.Order
 // an internal channel and processes them.
 // This method should be called from a goroutine.
 func (p *OrderProcessor) Run(ctx context.Context) {
+	p.startWorkers(ctx)
 	p.mainLoop(ctx)
 	p.shutdown(ctx)
 }
@@ -104,7 +116,10 @@ func (p *OrderProcessor) HasFinished() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return p.queue.Len() == 0
+	isEmptyQueue := p.queue.Len() == 0
+	hasProcessingFinished := p.eventsInFlight == 0
+
+	return isEmptyQueue && hasProcessingFinished
 }
 
 func (p *OrderProcessor) enqueueEvent(event OrderEvent) bool {
@@ -114,6 +129,11 @@ func (p *OrderProcessor) enqueueEvent(event OrderEvent) bool {
 	if p.isClosed {
 		return false
 	}
+
+	slog.Debug("processor: enqueue",
+		slog.Any("event", event),
+		slog.Int("queue_size", p.queue.Len()),
+	)
 
 	p.queue.PushBack(event)
 	p.notifyMainLoop()
@@ -131,18 +151,74 @@ func (p *OrderProcessor) notifyMainLoop() {
 	p.notifyCh <- struct{}{}
 }
 
+func (p *OrderProcessor) startWorkers(ctx context.Context) {
+	callbackCh := make(chan orderEventResult)
+	doneCh := make(chan struct{})
+
+	p.callbackCh = callbackCh
+	p.doneCh = doneCh
+
+	p.startCallbackProcessing(ctx)
+
+	p.workerPool.Start(ctx, callbackCh)
+}
+
+func (p *OrderProcessor) startCallbackProcessing(ctx context.Context) {
+	go p.runCallbackProcessing(ctx)
+}
+
+func (p *OrderProcessor) runCallbackProcessing(ctx context.Context) {
+	for result := range p.callbackCh {
+		p.processCallback(ctx, result)
+	}
+
+	close(p.doneCh)
+}
+
+func (p *OrderProcessor) processCallback(ctx context.Context, result orderEventResult) {
+	slog.DebugContext(ctx, "processor: callback",
+		slog.Any("event", result.OrderEvent),
+		slog.Any("error", result.err),
+	)
+
+	p.decrementEventsInFlight()
+
+	if result.err == nil {
+		return
+	}
+
+	if !hasContextExpired(ctx) {
+		p.enqueueEvent(result.OrderEvent)
+	}
+}
+
+func (p *OrderProcessor) decrementEventsInFlight() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	inflight := p.eventsInFlight
+	p.eventsInFlight--
+
+	slog.Debug("processor: inflight--",
+		slog.Uint64("before", inflight),
+		slog.Uint64("after", p.eventsInFlight),
+	)
+}
+
 func (p *OrderProcessor) mainLoop(ctx context.Context) {
 loop:
 	for {
 		select {
 		case <-ctx.Done():
-			p.setIsClosed()
-
 			break loop
 		case <-p.notifyCh:
 			p.processQueue(ctx)
 		}
 	}
+
+	p.setIsClosed()
+
+	slog.DebugContext(ctx, "processor: main loop completed")
 }
 
 func (p *OrderProcessor) setIsClosed() {
@@ -153,13 +229,8 @@ func (p *OrderProcessor) setIsClosed() {
 }
 
 func (p *OrderProcessor) processQueue(ctx context.Context) {
-	var (
-		event OrderEvent
-		ok    bool
-	)
-
-	for {
-		event, ok = p.nextEvent()
+	for !hasContextExpired(ctx) {
+		event, ok := p.nextEvent()
 		if !ok {
 			break
 		}
@@ -169,157 +240,87 @@ func (p *OrderProcessor) processQueue(ctx context.Context) {
 }
 
 func (p *OrderProcessor) nextEvent() (OrderEvent, bool) {
+	var event OrderEvent
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.queue.Len() == 0 {
-		//nolint:exhaustruct
-		return OrderEvent{}, false
+		return event, false
 	}
 
-	return p.queue.PopFront(), true
-}
+	event = p.queue.PopFront()
 
-// shutdown processes any remaining events in the [OrderQueue] while respecting
-// [shutdownTimeout].
-func (p *OrderProcessor) shutdown(ctx context.Context) {
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), p.shutdownTimeout)
-	defer cancel()
+	inflight := p.eventsInFlight
+	p.eventsInFlight++
 
-	p.processQueue(shutdownCtx)
-}
-
-func (p *OrderProcessor) processEvent(baseCtx context.Context, event OrderEvent) {
-	ctx, cancel := context.WithTimeout(baseCtx, p.perEventTimeout)
-	defer cancel()
-
-	if !p.shouldProcessEvent(ctx, event) {
-		return
-	}
-
-	accOrder, err := p.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
-	if err != nil {
-		p.processAccrualClientError(ctx, event, err)
-
-		return
-	}
-
-	p.processAccrualClientOrder(ctx, event.userID, accOrder)
-}
-
-func (p *OrderProcessor) shouldProcessEvent(ctx context.Context, event OrderEvent) bool {
-	select {
-	case <-ctx.Done():
-		return false
-	default:
-	}
-
-	status, err := p.orderRepo.GetOrderStatus(ctx, event.userID, event.orderID)
-	if err != nil {
-		p.processGetOrderStatusError(event, err)
-
-		return false
-	}
-
-	return p.shouldProcessOrderStatus(ctx, event, status)
-}
-
-func (p *OrderProcessor) processGetOrderStatusError(event OrderEvent, err error) {
-	if errors.Is(err, domain.ErrOrderNotFound) {
-		return
-	}
-
-	p.enqueueEvent(event)
-}
-
-func (p *OrderProcessor) shouldProcessOrderStatus(
-	ctx context.Context,
-	event OrderEvent,
-	status domain.OrderStatus,
-) bool {
-	var isEligible bool
-
-	switch status {
-	case domain.OrderStatusNew, domain.OrderStatusProcessing:
-		isEligible = true
-	case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
-		isEligible = false
-	}
-
-	slog.DebugContext(ctx, "order eligibility for processing",
-		slog.Group("order",
-			slog.Uint64("id", uint64(event.orderID)),
-			slog.String("user", string(event.userID)),
-			slog.Int("status", int(status)),
-		),
-		slog.Bool("is_eligible", isEligible),
+	slog.Debug("processor: inflight++",
+		slog.Uint64("before", inflight),
+		slog.Uint64("after", p.eventsInFlight),
 	)
 
-	return isEligible
+	return event, true
 }
 
-func (p *OrderProcessor) processAccrualClientError(_ context.Context, event OrderEvent, _ error) {
-	p.retryEvent(event)
+func (p *OrderProcessor) processEvent(ctx context.Context, event OrderEvent) {
+	slog.DebugContext(ctx, "processor: sending to worker pool",
+		slog.Any("event", event),
+		slog.Any("ctx", ctx),
+	)
+
+	p.workerPool.TakeEvent(event)
 }
 
-func (p *OrderProcessor) processAccrualClientOrder(
-	ctx context.Context,
-	userID domain.UserID,
-	accOrder accdomain.Order,
-) {
-	orderID := domain.OrderID(accOrder.ID)
+// shutdown processes any remaining events in the [OrderQueue] while respecting [shutdownTimeout].
+func (p *OrderProcessor) shutdown(baseCtx context.Context) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(baseCtx), p.shutdownTimeout)
+	defer cancel()
 
-	switch accOrder.Status {
-	case accdomain.OrderStatusRegistered, accdomain.OrderStatusProcessing:
-		p.markOrderProcessing(ctx, userID, orderID)
-	case accdomain.OrderStatusProcessed:
-		p.markOrderProcessed(ctx, userID, orderID, accOrder.AccrualPoints)
-	case accdomain.OrderStatusInvalid:
-		p.markOrderInvalid(ctx, userID, orderID)
-	default:
-		p.markOrderInvalid(ctx, userID, orderID)
+	slog.DebugContext(ctx, "processor: shutdown started",
+		slog.Int("queue_size", p.queueSize()),
+		slog.Any("ctx", ctx),
+	)
+
+	p.waitForWorkersToFinish(ctx)
+
+	p.startWorkers(ctx)
+	p.drainQueue(ctx)
+
+	slog.DebugContext(ctx, "processor: shutdown queue drained")
+
+	p.waitForWorkersToFinish(ctx)
+
+	slog.DebugContext(ctx, "processor: shutdown finished")
+}
+
+func (p *OrderProcessor) queueSize() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.queue.Len()
+}
+
+func (p *OrderProcessor) waitForWorkersToFinish(ctx context.Context) {
+	p.workerPool.Wait(ctx)
+	<-p.doneCh
+}
+
+func (p *OrderProcessor) drainQueue(ctx context.Context) {
+	for {
+		event, ok := p.nextEvent()
+		if !ok {
+			break
+		}
+
+		if hasContextExpired(ctx) {
+			p.processCallback(ctx, orderEventResult{
+				OrderEvent: event,
+				err:        nil,
+			})
+
+			continue
+		}
+
+		p.processEvent(ctx, event)
 	}
-}
-
-func (p *OrderProcessor) markOrderProcessing(ctx context.Context, userID domain.UserID, orderID domain.OrderID) bool {
-	err := p.orderRepo.MarkOrderProcessing(ctx, userID, orderID)
-	if err != nil {
-		p.retryOrder(userID, orderID)
-
-		return false
-	}
-
-	return true
-}
-
-func (p *OrderProcessor) markOrderInvalid(ctx context.Context, userID domain.UserID, orderID domain.OrderID) {
-	err := p.orderRepo.MarkOrderInvalid(ctx, userID, orderID)
-	if err != nil {
-		p.retryOrder(userID, orderID)
-	}
-}
-
-func (p *OrderProcessor) markOrderProcessed(
-	ctx context.Context,
-	userID domain.UserID,
-	orderID domain.OrderID,
-	accrual float64,
-) {
-	err := p.orderRepo.MarkOrderProcessed(ctx, userID, orderID, accrual)
-	if err != nil {
-		p.retryOrder(userID, orderID)
-	}
-}
-
-func (p *OrderProcessor) retryOrder(userID domain.UserID, orderID domain.OrderID) {
-	event := OrderEvent{
-		userID:  userID,
-		orderID: orderID,
-	}
-
-	p.retryEvent(event)
-}
-
-func (p *OrderProcessor) retryEvent(event OrderEvent) {
-	p.enqueueEvent(event)
 }

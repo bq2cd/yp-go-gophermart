@@ -12,6 +12,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
@@ -19,6 +20,8 @@ import (
 var _ service.OrderProcessor = (*workers.OrderProcessor)(nil)
 
 var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
+	testutil.MaybeEnableDebugLogging()
+
 	var (
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
@@ -103,7 +106,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 			go orderProcessor.Run(ctx)
 
-			Eventually(orderProcessor.HasFinished).To(BeTrue())
+			Eventually(orderProcessor.HasFinished).To(BeTrue(), "order processor should have finished by now")
 		})
 
 		Context("all orders are new", func() {
@@ -145,7 +148,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				}
 			})
 
-			It("test repo should have proper state", func() {
+			It("should process only orders uploaded to accrual server", func() {
 				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
 						"user1": 7.77,
@@ -214,7 +217,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				}
 			})
 
-			It("test repo should have proper state", func() {
+			It("should process only orders that are eligible for processing", func() {
 				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
@@ -236,9 +239,13 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 		})
 
-		Context("working with delays", func() {
+		Context("hitting delays during processing", func() {
 			BeforeEach(func() {
 				runTimeout = 80 * time.Millisecond
+
+				orderProcessorOptions = append(orderProcessorOptions,
+					workers.WithOrderProcessorShutdownTimeout(50*time.Millisecond),
+				)
 
 				testCtx.InputOrders = []domain.OrderID{
 					10_123,
@@ -269,70 +276,125 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				}
 			})
 
-			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
-					Balances: fakes.TestBalanceMap{
-						"user1": 13.21,
-						"user2": 0.0,
-					},
-					Orders: fakes.TestOrderMap{
-						10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 8.21},
-						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
-					},
+			When("order processor has single worker", func() {
+				BeforeEach(func() {
+					orderProcessorOptions = append(orderProcessorOptions,
+						workers.WithOrderProcessorWorkerPoolSize(1),
+					)
+				})
+
+				It("should process only single order", func() {
+					orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+						Balances: fakes.TestBalanceMap{
+							"user1": 13.21,
+							"user2": 0.0,
+						},
+						Orders: fakes.TestOrderMap{
+							10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 8.21},
+							20_456: {UserID: "user1", Status: domain.OrderStatusNew},
+						},
+					})
 				})
 			})
 
+			When("order processor has two workers", func() {
+				BeforeEach(func() {
+					orderProcessorOptions = append(orderProcessorOptions,
+						workers.WithOrderProcessorWorkerPoolSize(2),
+					)
+				})
+
+				It("should process two orders", func() {
+					orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+						Balances: fakes.TestBalanceMap{
+							"user1": 17.65,
+							"user2": 0.0,
+						},
+						Orders: fakes.TestOrderMap{
+							10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 8.21},
+							20_456: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 4.44},
+						},
+					})
+				})
+			})
 		})
 
-		Context("overriding shutdown/per-event timeouts", func() {
-			BeforeEach(func() {
-				runTimeout = 500 * time.Millisecond
+		Context("consistently hitting per-event timeouts during processing", func() {
+			DescribeTableSubtree("with number of workers",
+				func(_numWorkers int) {
+					BeforeEach(func() {
+						runTimeout = 500 * time.Millisecond
 
-				orderProcessorOptions = append(orderProcessorOptions,
-					workers.WithOrderProcessorPerEventTimeout(25*time.Millisecond),
-					workers.WithOrderProcessorShutdownTimeout(50*time.Millisecond),
-				)
+						orderProcessorOptions = append(orderProcessorOptions,
+							workers.WithOrderProcessorPerEventTimeout(20*time.Millisecond),
+							workers.WithOrderProcessorShutdownTimeout(100*time.Millisecond),
+							workers.WithOrderProcessorWorkerPoolSize(uint(_numWorkers)),
+						)
 
-				testCtx.InputOrders = []domain.OrderID{
-					10_123,
-					20_456,
-				}
-				testCtx.OrderRepoData = fakes.TestOrderRepoData{
-					Balances: fakes.TestBalanceMap{
-						"user1": 5.0,
-						"user2": 0.0,
-					},
-					Orders: fakes.TestOrderMap{
-						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
-						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
-					},
-				}
-				testCtx.AccrualData = fakes.TestAccrualData{
-					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
-					20_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
-				}
-				testCtx.OrderRepoDelays = fakes.TestOrderRepoDelayMap{
-					10_123: {
-						GetOrderStatus: 50 * time.Millisecond,
-					},
-				}
-				testCtx.AccrualDelays = fakes.TestAccrualDelayMap{
-					20_456: {GetOrderStatus: 50 * time.Millisecond},
-				}
-			})
+						testCtx.InputOrders = []domain.OrderID{
+							10_123,
+							10_456,
+							10_789,
+							20_123,
+							20_456,
+							20_789,
+						}
+						testCtx.OrderRepoData = fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						}
+						testCtx.AccrualData = fakes.TestAccrualData{
+							10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
+							10_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
+							10_789: {Status: accdomain.OrderStatusRegistered},
+							20_123: {Status: accdomain.OrderStatusRegistered},
+							20_456: {Status: accdomain.OrderStatusRegistered},
+							20_789: {Status: accdomain.OrderStatusRegistered},
+						}
+						testCtx.OrderRepoDelays = fakes.TestOrderRepoDelayMap{
+							10_123: {GetOrderStatus: 50 * time.Millisecond},
+							10_456: {GetOrderStatus: 50 * time.Millisecond},
+							10_789: {GetOrderStatus: 50 * time.Millisecond},
+						}
+						testCtx.AccrualDelays = fakes.TestAccrualDelayMap{
+							20_123: {GetOrderStatus: 50 * time.Millisecond},
+							20_456: {GetOrderStatus: 50 * time.Millisecond},
+							20_789: {GetOrderStatus: 50 * time.Millisecond},
+						}
+					})
 
-			It("test repo should have proper state", func() {
-				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
-					Balances: fakes.TestBalanceMap{
-						"user1": 5.0,
-						"user2": 0.0,
-					},
-					Orders: fakes.TestOrderMap{
-						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
-						20_456: {UserID: "user1", Status: domain.OrderStatusNew},
-					},
-				})
-			})
+					It("should not process any of the orders", func() {
+						orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						})
+					})
+				},
+				Entry(nil, 1),
+				Entry(nil, 2),
+				Entry(nil, 3),
+				Entry(nil, 4),
+				Entry(nil, 5),
+				Entry(nil, 6),
+			)
 
 		})
 	})

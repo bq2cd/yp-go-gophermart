@@ -10,3 +10,9 @@ type OrderEvent struct {
 	userID  domain.UserID
 	orderID domain.OrderID
 }
+
+type orderEventResult struct {
+	OrderEvent
+
+	err error
+}
