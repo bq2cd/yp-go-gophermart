@@ -2,7 +2,6 @@ package workers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -68,7 +67,7 @@ func (w *orderEventWorker) processEvent(baseCtx context.Context, event OrderEven
 
 	accOrder, err := w.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
 	if err != nil {
-		return w.processAccrualClientError(err)
+		return fmt.Errorf("cannot get order status from accrual system: %w", err)
 	}
 
 	return w.processAccrualClientOrder(ctx, event.userID, accOrder)
@@ -77,18 +76,10 @@ func (w *orderEventWorker) processEvent(baseCtx context.Context, event OrderEven
 func (w *orderEventWorker) shouldProcessEvent(ctx context.Context, event OrderEvent) (bool, error) {
 	status, err := w.orderRepo.GetOrderStatus(ctx, event.userID, event.orderID)
 	if err != nil {
-		return false, w.processGetOrderStatusError(err)
+		return false, fmt.Errorf("cannot get order status: %w", err)
 	}
 
 	return w.shouldProcessOrderStatus(ctx, event, status), nil
-}
-
-func (w *orderEventWorker) processGetOrderStatusError(err error) error {
-	if errors.Is(err, domain.ErrOrderNotFound) {
-		return nil
-	}
-
-	return err
 }
 
 func (w *orderEventWorker) shouldProcessOrderStatus(
@@ -115,10 +106,6 @@ func (w *orderEventWorker) shouldProcessOrderStatus(
 	)
 
 	return isEligible
-}
-
-func (w *orderEventWorker) processAccrualClientError(err error) error {
-	return err
 }
 
 func (w *orderEventWorker) processAccrualClientOrder(

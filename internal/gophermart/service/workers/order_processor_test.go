@@ -95,6 +95,15 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		BeforeEach(func() {
 			testCtx = NewTestOrderProcessorContext()
 			runTimeout = 100 * time.Millisecond
+			orderProcessorOptions = append(orderProcessorOptions,
+				workers.WithOrderProcessorDelayConfig(
+					workers.NewOrderEventDelayConfig(
+						workers.WithOrderEventInitialDelay(10*time.Millisecond),
+						workers.WithOrderEventMaxJitter(5*time.Millisecond),
+						workers.WithOrderEventMaxDelay(1*time.Second),
+					),
+				),
+			)
 		})
 
 		JustBeforeEach(func() {
