@@ -68,8 +68,8 @@ func describeOrderedAPISpec(databaseURI string) {
 			"test-user-2": {
 				{Number: "2008902", Status: api.OrderStatusProcessed, Accrual: 0.2},
 				{Number: "2006781", Status: api.OrderStatusProcessed, Accrual: 8.1},
-				{Number: "2004562", Status: api.OrderStatusInvalid},
-				{Number: "2002343", Status: api.OrderStatusInvalid},
+				{Number: "2004562", Status: api.OrderStatusNew},
+				{Number: "2002343", Status: api.OrderStatusNew},
 			},
 		},
 	}

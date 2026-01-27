@@ -3,12 +3,10 @@ package fakes
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"sync"
 	"time"
-
-	"github.com/go-logr/logr"
-	"github.com/onsi/ginkgo/v2"
 
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -49,7 +47,7 @@ var _ workers.AccrualClient = (*TestAccrualClient)(nil)
 
 type TestAccrualClient struct {
 	mu     sync.RWMutex
-	logger logr.Logger
+	level  slog.Level
 	data   TestAccrualData
 	errs   TestAccrualErrorMap
 	delays TestAccrualDelayMap
@@ -57,7 +55,7 @@ type TestAccrualClient struct {
 
 func NewTestAccrualClient() *TestAccrualClient {
 	return &TestAccrualClient{
-		logger: ginkgo.GinkgoLogr.WithName("TestAccrualClient"),
+		level:  testutil.LevelTrace,
 		data:   TestAccrualData{},
 		errs:   TestAccrualErrorMap{},
 		delays: TestAccrualDelayMap{},
@@ -71,7 +69,7 @@ func (c *TestAccrualClient) Setup(data TestAccrualData, errs TestAccrualErrorMap
 }
 
 func (c *TestAccrualClient) GetOrderStatus(ctx context.Context, orderID accdomain.OrderID) (accdomain.Order, error) {
-	rtl := testutil.NewReturnLogger2[accdomain.Order, error](c.logger, orderID)
+	rtl := testutil.NewReturnLogger2[accdomain.Order, error](c.level, orderID)
 
 	if ctx.Err() != nil {
 		return rtl.Log(accdomain.Order{}, ctx.Err())

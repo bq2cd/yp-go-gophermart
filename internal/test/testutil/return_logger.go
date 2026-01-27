@@ -1,27 +1,31 @@
 package testutil
 
 import (
+	"context"
+	"log/slog"
 	"reflect"
 	"slices"
-
-	"github.com/go-logr/logr"
 )
 
 const (
 	returnLoggerSkipFrames           = 2
+	returnLoggerFunctionLastname     = 2
 	argsToKVPairsCapacityCoefficient = 2
 )
 
 type returnLoggerBase struct {
-	logger logr.Logger
-	args   []any
+	level slog.Level
+	args  []any
 }
 
 func (l *returnLoggerBase) log(retValues ...any) {
-	fname := FunctionBasename(CallerFrame(returnLoggerSkipFrames))
+	fname := FunctionLastname(
+		CallerFrame(returnLoggerSkipFrames),
+		returnLoggerFunctionLastname,
+	)
 	args := slices.Concat(l.args, retValues)
 
-	l.logger.Info(fname, argsToKVPairs(args...)...)
+	slog.Log(context.Background(), l.level, fname, argsToKVPairs(args...)...)
 }
 
 // ReturnLogger implements a convenience wrapper to log provided return value
@@ -31,11 +35,11 @@ type ReturnLogger[T any] struct {
 }
 
 // NewReturnLogger creates an instance of [ReturnLogger].
-func NewReturnLogger[T any](logger logr.Logger, args ...any) *ReturnLogger[T] {
+func NewReturnLogger[T any](level slog.Level, args ...any) *ReturnLogger[T] {
 	return &ReturnLogger[T]{
 		returnLoggerBase: returnLoggerBase{
-			logger: logger,
-			args:   args,
+			level: level,
+			args:  args,
 		},
 	}
 }
@@ -57,11 +61,11 @@ type ReturnLogger2[A, B any] struct {
 }
 
 // NewReturnLogger2 creates an instance of [ReturnLogger2].
-func NewReturnLogger2[A, B any](logger logr.Logger, args ...any) *ReturnLogger2[A, B] {
+func NewReturnLogger2[A, B any](level slog.Level, args ...any) *ReturnLogger2[A, B] {
 	return &ReturnLogger2[A, B]{
 		returnLoggerBase: returnLoggerBase{
-			logger: logger,
-			args:   args,
+			level: level,
+			args:  args,
 		},
 	}
 }

@@ -4,17 +4,22 @@ package fakes
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"maps"
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
+	"github.com/govalues/decimal"
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
+)
+
+const (
+	testOrderRepositoryBalanceDecimalScale = 16
 )
 
 type TestOrder struct {
@@ -78,7 +83,7 @@ var _ workers.OrderRepository = (*TestOrderRepository)(nil)
 
 type TestOrderRepository struct {
 	mu     sync.RWMutex
-	logger logr.Logger
+	level  slog.Level
 	data   TestOrderRepoData
 	errs   TestOrderRepoErrorMap
 	delays TestOrderRepoDelayMap
@@ -86,7 +91,7 @@ type TestOrderRepository struct {
 
 func NewTestOrderRepository() *TestOrderRepository {
 	return &TestOrderRepository{
-		logger: ginkgo.GinkgoLogr.WithName("TestOrderRepository"),
+		level:  testutil.LevelTrace,
 		data:   TestOrderRepoData{},
 		errs:   TestOrderRepoErrorMap{},
 		delays: TestOrderRepoDelayMap{},
@@ -108,7 +113,7 @@ func (r *TestOrderRepository) GetOrderStatus(
 	userID domain.UserID,
 	orderID domain.OrderID,
 ) (domain.OrderStatus, error) {
-	rtl := testutil.NewReturnLogger2[domain.OrderStatus, error](r.logger, userID, orderID)
+	rtl := testutil.NewReturnLogger2[domain.OrderStatus, error](r.level, userID, orderID)
 
 	if ctx.Err() != nil {
 		return rtl.Log(domain.OrderStatusInvalid, ctx.Err())
@@ -140,7 +145,7 @@ func (r *TestOrderRepository) MarkOrderInvalid(
 	userID domain.UserID,
 	orderID domain.OrderID,
 ) error {
-	rtl := testutil.NewReturnLogger[error](r.logger, userID, orderID)
+	rtl := testutil.NewReturnLogger[error](r.level, userID, orderID)
 
 	if ctx.Err() != nil {
 		return rtl.Log(ctx.Err())
@@ -179,7 +184,7 @@ func (r *TestOrderRepository) MarkOrderProcessing(
 	userID domain.UserID,
 	orderID domain.OrderID,
 ) error {
-	rtl := testutil.NewReturnLogger[error](r.logger, userID, orderID)
+	rtl := testutil.NewReturnLogger[error](r.level, userID, orderID)
 
 	if ctx.Err() != nil {
 		return rtl.Log(ctx.Err())
@@ -225,7 +230,7 @@ func (r *TestOrderRepository) MarkOrderProcessed(
 	orderID domain.OrderID,
 	amount float64,
 ) error {
-	rtl := testutil.NewReturnLogger[error](r.logger, userID, orderID, amount)
+	rtl := testutil.NewReturnLogger[error](r.level, userID, orderID, amount)
 
 	if ctx.Err() != nil {
 		return rtl.Log(ctx.Err())
@@ -260,7 +265,11 @@ func (r *TestOrderRepository) MarkOrderProcessed(
 	order.Status = domain.OrderStatusProcessed
 	order.Accrual = amount
 	r.data.Orders[orderID] = order
-	r.data.Balances[userID] += amount
+
+	err = r.incrementBalance(userID, amount)
+	if err != nil {
+		return rtl.Log(err)
+	}
 
 	return rtl.Log(nil)
 }
@@ -283,6 +292,29 @@ func (r *TestOrderRepository) validateUser(order TestOrder, expectedUserID domai
 	if order.UserID != expectedUserID {
 		return fmt.Errorf("user ID mismatch: %v (order) != %v (expected)", order.UserID, expectedUserID)
 	}
+
+	return nil
+}
+
+func (r *TestOrderRepository) incrementBalance(userID domain.UserID, amount float64) error {
+	increment, err := decimal.NewFromFloat64(amount)
+	if err != nil {
+		return fmt.Errorf("cannot convert amount to decimal: %w", err)
+	}
+
+	oldBalance, err := decimal.NewFromFloat64(r.data.Balances[userID])
+	if err != nil {
+		return fmt.Errorf("cannot convert old balance to decimal: %w", err)
+	}
+
+	newBalance, err := oldBalance.AddExact(increment, testOrderRepositoryBalanceDecimalScale)
+	if err != nil {
+		return fmt.Errorf("cannot add amount to balance exactly: %w", err)
+	}
+
+	result, _ := newBalance.Float64()
+
+	r.data.Balances[userID] = result
 
 	return nil
 }
