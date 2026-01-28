@@ -168,31 +168,66 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 				)
 			})
 
-			Context("order processor is working", func() {
-				BeforeAll(func() {
+			Context("order processor is started", func() {
+				startOrderProcessing := func(preloadOrders bool) context.CancelFunc {
 					serverProcessingLeeway = 200 * time.Millisecond
 
 					ctx, cancel := context.WithTimeout(GinkgoT().Context(), serverProcessingLeeway)
 
-					DeferCleanup(cancel)
+					apiCtx.StartOrderProcessing(ctx, preloadOrders)
 
-					apiCtx.StartOrderProcessing(ctx)
+					return cancel
+				}
+
+				Context("order processor has run", func() {
+					BeforeAll(func() {
+						cancel := startOrderProcessing( /* preloadOrders */ false)
+
+						DeferCleanup(cancel)
+					})
+
+					AfterAll(func() {
+						Eventually(apiCtx.HasOrderProcessingFinished).To(BeTrue())
+					})
+
+					DescribeTableSubtree("each user",
+						func(_login string) {
+							It("should return partially processed orders", func() {
+								actualOrders := listOrdersFn(_login)
+
+								expectAPIOrdersEquivalence(actualOrders, stageData.ExpectedAPIOrders[_login])
+							})
+						},
+						stageData.LoginEntries(),
+					)
 				})
 
-				AfterAll(func() {
-					Eventually(apiCtx.HasOrderProcessingFinished).To(BeTrue())
+				Context("after accrual system got updated with new data, order processor has run again", func() {
+					BeforeAll(func() {
+						By("simulating processing of pending orders, as if after restart")
+
+						apiCtx.SetupAccrualServer(stageData.SeedAccrualData2)
+
+						cancel := startOrderProcessing( /* preloadOrders */ true)
+
+						DeferCleanup(cancel)
+					})
+
+					AfterAll(func() {
+						Eventually(apiCtx.HasOrderProcessingFinished).To(BeTrue())
+					})
+
+					DescribeTableSubtree("each user",
+						func(_login string) {
+							It("should return fully processed orders", func() {
+								actualOrders := listOrdersFn(_login)
+
+								expectAPIOrdersEquivalence(actualOrders, stageData.ExpectedAPIOrders2[_login])
+							})
+						},
+						stageData.LoginEntries(),
+					)
 				})
-
-				DescribeTableSubtree("each user",
-					func(_login string) {
-						It("should return all orders with proper status", func() {
-							actualOrders := listOrdersFn(_login)
-
-							expectAPIOrdersEquivalence(actualOrders, stageData.ExpectedAPIOrders[_login])
-						})
-					},
-					stageData.LoginEntries(),
-				)
 			})
 		})
 	})
@@ -203,9 +238,11 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 type APIStageDataOrder struct {
 	APIStageDataUser
 
-	SeedAccrualData   integration.TestAccrualData
-	SeedOrders        map[string][]domain.OrderID
-	ExpectedAPIOrders map[string][]api.Order
+	SeedAccrualData    integration.TestAccrualData
+	SeedOrders         map[string][]domain.OrderID
+	ExpectedAPIOrders  map[string][]api.Order
+	SeedAccrualData2   integration.TestAccrualData
+	ExpectedAPIOrders2 map[string][]api.Order
 }
 
 func (d APIStageDataOrder) GetOrdersForAnyUserExceptFor(login string) []domain.OrderID {

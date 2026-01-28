@@ -17,7 +17,9 @@ func (c *APITestContext) SetupAccrualServer(data TestAccrualData) {
 	c.accrualServer.SetupData(data)
 }
 
-func (c *APITestContext) StartOrderProcessing(ctx context.Context) {
+func (c *APITestContext) StartOrderProcessing(ctx context.Context, preloadOrders bool) {
+	c.orderProcessor.EnableOrderPreloadingOnStart(preloadOrders)
+
 	go c.orderProcessor.Run(ctx) //nolint:errcheck // Error is never returned.
 }
 

@@ -108,6 +108,31 @@ func (r *TestOrderRepository) GetData() *TestOrderRepoData {
 	return &r.data
 }
 
+func (r *TestOrderRepository) GetProcessableOrdersPerUser(
+	ctx context.Context,
+) (map[domain.UserID][]domain.OrderID, error) {
+	rtl := testutil.NewReturnLogger2[map[domain.UserID][]domain.OrderID, error](r.level)
+
+	if ctx.Err() != nil {
+		return rtl.Log(nil, ctx.Err())
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	ordersPerUser := make(map[domain.UserID][]domain.OrderID)
+	for orderID, order := range r.data.Orders {
+		switch order.Status {
+		case domain.OrderStatusNew, domain.OrderStatusProcessing:
+			ordersPerUser[order.UserID] = append(ordersPerUser[order.UserID], orderID)
+		case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
+			// make linter happy
+		}
+	}
+
+	return rtl.Log(ordersPerUser, nil)
+}
+
 func (r *TestOrderRepository) GetOrderStatus(
 	ctx context.Context,
 	userID domain.UserID,

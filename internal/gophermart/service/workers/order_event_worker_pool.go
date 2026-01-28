@@ -12,7 +12,6 @@ type orderEventWorkerPool struct {
 	poolSize   uint
 	wg         sync.WaitGroup
 	outgoingCh chan<- OrderEvent
-	doneCh     chan struct{}
 }
 
 func newOrderEventWorkerPool(
@@ -32,7 +31,6 @@ func newOrderEventWorkerPool(
 		poolSize:   orderProcessorDefaultWorkerPoolSize,
 		wg:         sync.WaitGroup{},
 		outgoingCh: nil,
-		doneCh:     nil,
 	}
 }
 
@@ -55,9 +53,7 @@ func (p *orderEventWorkerPool) SetPoolSize(size uint) {
 // to a pre-configured pool size.
 func (p *orderEventWorkerPool) Start(ctx context.Context, callbackCh chan<- orderEventResult) {
 	workCh := make(chan OrderEvent)
-	doneCh := make(chan struct{})
 
-	p.doneCh = doneCh
 	p.outgoingCh = workCh
 	p.workerCtx.incomingCh = workCh
 	p.workerCtx.callbackCh = callbackCh
@@ -72,24 +68,14 @@ func (p *orderEventWorkerPool) Start(ctx context.Context, callbackCh chan<- orde
 // Wait waits for all workers to finish their work.
 // Each worker would respect context cancellation and finish
 // its work as soon as possible.
-func (p *orderEventWorkerPool) Wait(ctx context.Context) {
+func (p *orderEventWorkerPool) Wait() {
 	close(p.outgoingCh)
 
-	go func() {
-		p.wg.Wait()
+	p.wg.Wait()
 
-		close(p.workerCtx.callbackCh)
-		close(p.doneCh)
+	close(p.workerCtx.callbackCh)
 
-		slog.DebugContext(ctx, "pool: workers finished")
-	}()
-
-	select {
-	case <-ctx.Done():
-	case <-p.doneCh:
-	}
-
-	slog.DebugContext(ctx, "pool: wait completed")
+	slog.Debug("pool: workers finished")
 }
 
 // TakeEvent takes provided event and sends it to the outgoing channel,

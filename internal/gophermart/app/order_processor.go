@@ -31,3 +31,9 @@ func (p *OrderProcessor) Run(ctx context.Context) error {
 func (p *OrderProcessor) HasFinished() bool {
 	return p.processor.HasFinished()
 }
+
+// EnableOrderPreloadingOnStart expose [workers.OrderProcessor.EnableOrderPreloadingOnStart] method,
+// primarily for testing purposes.
+func (p *OrderProcessor) EnableOrderPreloadingOnStart(enable bool) {
+	p.processor.EnableOrderPreloadingOnStart(enable)
+}

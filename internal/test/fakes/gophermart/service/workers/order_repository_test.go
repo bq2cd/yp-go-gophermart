@@ -85,6 +85,67 @@ var _ = Describe("OrderRepository", func() {
 		})
 	}
 
+	Describe("GetProcessableOrdersPerUser", func() {
+		var (
+			actualOrders, expectedOrders map[domain.UserID][]domain.OrderID
+		)
+
+		BeforeEach(func() {
+			actionFn = func(ctx context.Context) {
+				actualOrders, err = orderRepo.GetProcessableOrdersPerUser(ctx)
+			}
+		})
+
+		whenActionContextExpired(func() {
+			Expect(actualOrders).To(BeEmpty())
+		})
+
+		When("users have some unprocessed orders", func() {
+			BeforeEach(func() {
+				testData = fakes.TestOrderRepoData{
+					Orders: fakes.TestOrderMap{
+						domain.OrderID(10_123): {UserID: "user1", Status: domain.OrderStatusNew},
+						domain.OrderID(10_456): {UserID: "user1", Status: domain.OrderStatusProcessing},
+						domain.OrderID(10_789): {UserID: "user1", Status: domain.OrderStatusProcessed},
+						domain.OrderID(10_900): {UserID: "user1", Status: domain.OrderStatusInvalid},
+						domain.OrderID(20_789): {UserID: "user2", Status: domain.OrderStatusProcessed},
+						domain.OrderID(20_900): {UserID: "user2", Status: domain.OrderStatusInvalid},
+					},
+				}
+
+				expectedOrders = map[domain.UserID][]domain.OrderID{
+					"user1": {10_123, 10_456},
+				}
+			})
+			It("should return only orders that need processing", func() {
+				Expect(err).To(Succeed())
+
+				for userID := range expectedOrders {
+					Expect(actualOrders[userID]).To(ConsistOf(expectedOrders[userID]))
+				}
+			})
+		})
+
+		When("users have all orders processed", func() {
+			BeforeEach(func() {
+				testData = fakes.TestOrderRepoData{
+					Orders: fakes.TestOrderMap{
+						domain.OrderID(10_123): {UserID: "user1", Status: domain.OrderStatusInvalid},
+						domain.OrderID(10_456): {UserID: "user1", Status: domain.OrderStatusProcessed},
+						domain.OrderID(10_789): {UserID: "user1", Status: domain.OrderStatusProcessed},
+						domain.OrderID(10_900): {UserID: "user1", Status: domain.OrderStatusInvalid},
+						domain.OrderID(20_789): {UserID: "user2", Status: domain.OrderStatusProcessed},
+						domain.OrderID(20_900): {UserID: "user2", Status: domain.OrderStatusInvalid},
+					},
+				}
+			})
+			It("should return empty result", func() {
+				Expect(err).To(Succeed())
+				Expect(actualOrders).To(BeEmpty())
+			})
+		})
+	})
+
 	Describe("GetOrderStatus", func() {
 		var status, expectedStatus domain.OrderStatus
 
@@ -516,5 +577,4 @@ var _ = Describe("OrderRepository", func() {
 			})
 		})
 	})
-
 })

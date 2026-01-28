@@ -87,6 +87,39 @@ func (s *Storage) GetOrderAccruals(
 	return accruals, nil
 }
 
+// GetProcessableOrdersPerUser will return a mapping from a user ID to a list of order IDs
+// belonging to that user and requiring further processing, that is, orders with statuses
+// [domain.OrderStatusNew] and [domain.OrderStatusProcessing].
+// The order IDs will be sorted from the oldest to the newest by [domain.Order.CreatedAt] field.
+// This method is being used internally by [workers.OrderProcessor].
+func (s *Storage) GetProcessableOrdersPerUser(
+	_ context.Context,
+) (map[domain.UserID][]domain.OrderID, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ordersPerUser := make(map[domain.UserID][]Order)
+	for _, order := range s.orders {
+		switch order.Status {
+		case domain.OrderStatusNew, domain.OrderStatusProcessing:
+			ordersPerUser[order.UserID] = append(ordersPerUser[order.UserID], order)
+		case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
+			// make linter happy
+		}
+	}
+
+	orderIDsPerUser := make(map[domain.UserID][]domain.OrderID)
+	for userID, orders := range ordersPerUser {
+		domain.SortByTimestampFromOldestToNewest(orders)
+
+		for _, order := range orders {
+			orderIDsPerUser[userID] = append(orderIDsPerUser[userID], order.ID)
+		}
+	}
+
+	return orderIDsPerUser, nil
+}
+
 // GetOrderStatus will return order status as recorded in the storage.
 // This method is being used internally by [workers.OrderProcessor].
 // It will return [domain.ErrOrderNotFound] error if such order does not exist,
