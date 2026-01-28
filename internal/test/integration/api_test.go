@@ -72,6 +72,27 @@ func describeOrderedAPISpec(databaseURI string) {
 				{Number: "2002343", Status: api.OrderStatusNew},
 			},
 		},
+		SeedAccrualData2: integration.TestAccrualData{
+			1001239: {Status: accdomain.OrderStatusProcessed, Accrual: 2.39},
+			1003458: {Status: accdomain.OrderStatusInvalid},
+			2002343: {Status: accdomain.OrderStatusProcessed, Accrual: 3.43},
+			2004562: {Status: accdomain.OrderStatusProcessed, Accrual: 5.62},
+		},
+		ExpectedAPIOrders2: map[string][]api.Order{
+			"test-user-1": {
+				{Number: "1009000", Status: api.OrderStatusInvalid},
+				{Number: "1007897", Status: api.OrderStatusProcessed, Accrual: 9.7},
+				{Number: "1005677", Status: api.OrderStatusProcessed},
+				{Number: "1003458", Status: api.OrderStatusInvalid},
+				{Number: "1001239", Status: api.OrderStatusProcessed, Accrual: 2.39},
+			},
+			"test-user-2": {
+				{Number: "2008902", Status: api.OrderStatusProcessed, Accrual: 0.2},
+				{Number: "2006781", Status: api.OrderStatusProcessed, Accrual: 8.1},
+				{Number: "2004562", Status: api.OrderStatusProcessed, Accrual: 5.62},
+				{Number: "2002343", Status: api.OrderStatusProcessed, Accrual: 3.43},
+			},
+		},
 	}
 
 	stageDataBalance := APIStageDataBalance{
@@ -90,21 +111,21 @@ func describeOrderedAPISpec(databaseURI string) {
 		},
 		ExpectedBalancesBeforeWithdrawals: map[string]api.Balance{
 			"test-user-1": {
-				Current:   9.7,
+				Current:   12.09,
 				Withdrawn: 0.0,
 			},
 			"test-user-2": {
-				Current:   8.3,
+				Current:   17.35,
 				Withdrawn: 0.0,
 			},
 		},
 		ExpectedBalancesAfterWithdrawals: map[string]api.Balance{
 			"test-user-1": {
-				Current:   3.1,
+				Current:   5.49,
 				Withdrawn: 6.6,
 			},
 			"test-user-2": {
-				Current:   0.29,
+				Current:   9.34,
 				Withdrawn: 8.01,
 			},
 		},

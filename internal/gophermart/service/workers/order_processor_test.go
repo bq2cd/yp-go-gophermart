@@ -12,7 +12,6 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 	fakes "github.com/bq2cd/yp-go-gophermart/internal/test/fakes/gophermart/service/workers"
-	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
@@ -20,8 +19,6 @@ import (
 var _ service.OrderProcessor = (*workers.OrderProcessor)(nil)
 
 var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
-	testutil.MaybeEnableDebugLogging()
-
 	var (
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
@@ -103,6 +100,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 						workers.WithOrderEventMaxDelay(1*time.Second),
 					),
 				),
+				workers.WithOrderProcessorEnableOrderPreloadingOnStart(false),
 			)
 		})
 

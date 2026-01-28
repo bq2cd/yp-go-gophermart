@@ -9,6 +9,7 @@ import (
 // OrderRepository is responsible for updating order status and user's balance,
 // as well as providing a status of a given order.
 type OrderRepository interface {
+	GetProcessableOrdersPerUser(ctx context.Context) (map[domain.UserID][]domain.OrderID, error)
 	GetOrderStatus(ctx context.Context, userID domain.UserID, orderID domain.OrderID) (domain.OrderStatus, error)
 	MarkOrderInvalid(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error
 	MarkOrderProcessing(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error
