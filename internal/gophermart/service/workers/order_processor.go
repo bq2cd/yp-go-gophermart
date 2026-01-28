@@ -19,19 +19,13 @@ const (
 
 // OrderProcessor implements [service.OrderProcessor].
 type OrderProcessor struct {
-	mu                           sync.Mutex
-	wg                           sync.WaitGroup
-	queue                        OrderQueue
-	runCh                        chan struct{}
-	notifyCh                     chan struct{}
-	callbackCh                   <-chan orderEventResult
-	isClosed                     bool
-	workerPool                   *orderEventWorkerPool
-	shutdownTimeout              time.Duration
-	eventsInFlight               uint64
-	delayConfig                  retry.DelayContext
-	getProcessableOrdersFn       func(context.Context) (map[domain.UserID][]domain.OrderID, error)
-	enableOrderPreloadingOnStart bool
+	wg                     sync.WaitGroup
+	runCh                  chan struct{}
+	callbackCh             <-chan orderEventResult
+	config                 *orderProcessorConfig
+	state                  *orderProcessorState
+	workerPool             *orderEventWorkerPool
+	getProcessableOrdersFn func(context.Context) (map[domain.UserID][]domain.OrderID, error)
 }
 
 // NewOrderProcessor creates an instance of [OrderProcessor].
@@ -41,22 +35,22 @@ func NewOrderProcessor(
 	accrualClient AccrualClient,
 	options ...option.Option[OrderProcessor],
 ) *OrderProcessor {
+	config := &orderProcessorConfig{
+		ShutdownTimeout:              orderProcessorDefaultShutdownTimeout,
+		DelayConfig:                  NewOrderEventDelayConfig(),
+		EnableOrderPreloadingOnStart: true,
+	}
+	state := newOrderProcessorState(orderQueue)
 	workerPool := newOrderEventWorkerPool(orderRepository, accrualClient)
 
 	processor := &OrderProcessor{
-		mu:                           sync.Mutex{},
-		wg:                           sync.WaitGroup{},
-		queue:                        orderQueue,
-		runCh:                        make(chan struct{}, 1),
-		notifyCh:                     make(chan struct{}, 1),
-		callbackCh:                   nil,
-		isClosed:                     false,
-		workerPool:                   workerPool,
-		shutdownTimeout:              orderProcessorDefaultShutdownTimeout,
-		eventsInFlight:               0,
-		delayConfig:                  NewOrderEventDelayConfig(),
-		getProcessableOrdersFn:       orderRepository.GetProcessableOrdersPerUser,
-		enableOrderPreloadingOnStart: true,
+		wg:                     sync.WaitGroup{},
+		runCh:                  make(chan struct{}, 1),
+		callbackCh:             nil,
+		config:                 config,
+		state:                  state,
+		workerPool:             workerPool,
+		getProcessableOrdersFn: orderRepository.GetProcessableOrdersPerUser,
 	}
 	for _, opt := range options {
 		opt(processor)
@@ -77,7 +71,7 @@ func WithOrderProcessorPerEventTimeout(timeout time.Duration) option.Option[Orde
 // total timeout for a graceful shutdown of the [OrderProcessor].
 func WithOrderProcessorShutdownTimeout(timeout time.Duration) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
-		p.shutdownTimeout = timeout
+		p.config.ShutdownTimeout = timeout
 	}
 }
 
@@ -97,7 +91,7 @@ func WithOrderProcessorWorkerPoolSize(size uint) option.Option[OrderProcessor] {
 // internally based on event processing results.
 func WithOrderProcessorDelayConfig(config retry.DelayContext) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
-		p.delayConfig = config
+		p.config.DelayConfig = config
 	}
 }
 
@@ -110,7 +104,7 @@ func WithOrderProcessorDelayConfig(config retry.DelayContext) option.Option[Orde
 // manually for better flow control.
 func WithOrderProcessorEnableOrderPreloadingOnStart(enable bool) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
-		p.enableOrderPreloadingOnStart = enable
+		p.config.EnableOrderPreloadingOnStart = enable
 	}
 }
 
@@ -118,7 +112,7 @@ func WithOrderProcessorEnableOrderPreloadingOnStart(enable bool) option.Option[O
 func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.OrderID) bool {
 	event := p.newEvent(userID, orderID)
 
-	return p.enqueueEvent(event)
+	return p.state.EnqueueEvent(event)
 }
 
 // Run launches an infinite loop which consumes [OrderEvent] events from
@@ -127,14 +121,14 @@ func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.Order
 func (p *OrderProcessor) Run(ctx context.Context) {
 	p.runCh <- struct{}{}
 
-	p.setIsClosed(false)
+	p.state.SetIsClosed(false)
 
 	p.startEnqueueingProcessableOrders(ctx)
 	p.startWorkers(ctx)
 
 	p.mainLoop(ctx)
 
-	p.setIsClosed(true)
+	p.state.SetIsClosed(true)
 
 	p.shutdown(ctx)
 
@@ -145,23 +139,14 @@ func (p *OrderProcessor) Run(ctx context.Context) {
 // a shutdown process and has stopped accepting new orders.
 // It is primarily used in tests.
 func (p *OrderProcessor) IsClosed() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	return p.isClosed
+	return p.state.IsClosed()
 }
 
 // HasFinished returns [true] when [OrderProcessor] finishes
 // processing of all enqueued events after it has been shutdown.
 // It is primarily used in tests.
 func (p *OrderProcessor) HasFinished() bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	isEmptyQueue := p.queue.Len() == 0
-	hasProcessingFinished := p.eventsInFlight == 0
-
-	return isEmptyQueue && hasProcessingFinished
+	return p.state.HasFinished()
 }
 
 // EnableOrderPreloadingOnStart allows to change pre-configured behavior
@@ -170,7 +155,7 @@ func (p *OrderProcessor) HasFinished() bool {
 // It is primarily useful for testing to control multiple invocations
 // of [OrderProcessor].
 func (p *OrderProcessor) EnableOrderPreloadingOnStart(enable bool) {
-	p.enableOrderPreloadingOnStart = enable
+	p.config.EnableOrderPreloadingOnStart = enable
 }
 
 func (p *OrderProcessor) newEvent(userID domain.UserID, orderID domain.OrderID) OrderEvent {
@@ -179,41 +164,12 @@ func (p *OrderProcessor) newEvent(userID domain.UserID, orderID domain.OrderID) 
 		orderID:      orderID,
 		processAfter: time.Now(),
 		retries:      0,
-		delayConfig:  p.delayConfig,
+		delayConfig:  p.config.DelayConfig,
 	}
-}
-
-func (p *OrderProcessor) enqueueEvent(event OrderEvent) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.isClosed {
-		return false
-	}
-
-	slog.Debug("processor: enqueue",
-		slog.Any("event", event),
-		slog.Int("queue_size", p.queue.Len()),
-	)
-
-	p.queue.PushBack(event)
-	p.notifyMainLoop()
-
-	return true
-}
-
-func (p *OrderProcessor) notifyMainLoop() {
-	// Ensure we never block on sending to notify channel.
-	select {
-	case <-p.notifyCh:
-	default:
-	}
-
-	p.notifyCh <- struct{}{}
 }
 
 func (p *OrderProcessor) startEnqueueingProcessableOrders(ctx context.Context) {
-	if !p.enableOrderPreloadingOnStart {
+	if !p.config.EnableOrderPreloadingOnStart {
 		return
 	}
 
@@ -273,7 +229,7 @@ func (p *OrderProcessor) processCallback(ctx context.Context, result orderEventR
 }
 
 func (p *OrderProcessor) processEventResult(ctx context.Context, result orderEventResult) {
-	defer p.decrementEventsInFlight()
+	defer p.state.DecrementEventsInFlight()
 
 	if hasContextExpired(ctx) {
 		return
@@ -284,24 +240,7 @@ func (p *OrderProcessor) processEventResult(ctx context.Context, result orderEve
 		return
 	}
 
-	p.enqueueEvent(event)
-}
-
-func (p *OrderProcessor) decrementEventsInFlight() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	inflight := p.eventsInFlight
-
-	if p.eventsInFlight > 0 {
-		p.eventsInFlight--
-	}
-
-	slog.Debug("processor: inflight--",
-		slog.Uint64("before", inflight),
-		slog.Uint64("after", p.eventsInFlight),
-		slog.Int("queue_size", p.queue.Len()),
-	)
+	p.state.EnqueueEvent(event)
 }
 
 func (p *OrderProcessor) mainLoop(ctx context.Context) {
@@ -310,7 +249,7 @@ loop:
 		select {
 		case <-ctx.Done():
 			break loop
-		case <-p.notifyCh:
+		case <-p.state.NotifyC():
 			p.processQueue(ctx)
 		}
 	}
@@ -318,46 +257,15 @@ loop:
 	slog.DebugContext(ctx, "processor: main loop completed")
 }
 
-func (p *OrderProcessor) setIsClosed(value bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.isClosed = value
-}
-
 func (p *OrderProcessor) processQueue(ctx context.Context) {
 	for !hasContextExpired(ctx) {
-		event, ok := p.nextEvent()
+		event, ok := p.state.NextEvent()
 		if !ok {
 			break
 		}
 
 		p.processEvent(ctx, event)
 	}
-}
-
-func (p *OrderProcessor) nextEvent() (OrderEvent, bool) {
-	var event OrderEvent
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if p.queue.Len() == 0 {
-		return event, false
-	}
-
-	event = p.queue.PopFront()
-
-	inflight := p.eventsInFlight
-	p.eventsInFlight++
-
-	slog.Debug("processor: inflight++",
-		slog.Uint64("before", inflight),
-		slog.Uint64("after", p.eventsInFlight),
-		slog.Int("queue_size", p.queue.Len()),
-	)
-
-	return event, true
 }
 
 func (p *OrderProcessor) processEvent(ctx context.Context, event OrderEvent) {
@@ -386,7 +294,7 @@ func (p *OrderProcessor) sendEventBackToQueue(ctx context.Context, event OrderEv
 func (p *OrderProcessor) waitForEventToBecomeProcessable(ctx context.Context, event OrderEvent) {
 	defer p.wg.Done()
 
-	defer p.decrementEventsInFlight()
+	defer p.state.DecrementEventsInFlight()
 
 	timer := time.NewTimer(time.Until(event.processAfter))
 
@@ -400,7 +308,7 @@ func (p *OrderProcessor) waitForEventToBecomeProcessable(ctx context.Context, ev
 		timer.Stop()
 	case <-timer.C:
 		if !hasContextExpired(ctx) {
-			p.enqueueEvent(event)
+			p.state.EnqueueEvent(event)
 		}
 	}
 
@@ -412,11 +320,11 @@ func (p *OrderProcessor) waitForEventToBecomeProcessable(ctx context.Context, ev
 
 // shutdown processes any remaining events in the [OrderQueue] while respecting [shutdownTimeout].
 func (p *OrderProcessor) shutdown(baseCtx context.Context) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(baseCtx), p.shutdownTimeout)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(baseCtx), p.config.ShutdownTimeout)
 	defer cancel()
 
 	slog.DebugContext(ctx, "processor: shutdown started",
-		slog.Int("queue_size", p.queueSize()),
+		slog.Int("queue_size", p.state.QueueSize()),
 		slog.Any("ctx", ctx),
 	)
 
@@ -432,13 +340,6 @@ func (p *OrderProcessor) shutdown(baseCtx context.Context) {
 	slog.DebugContext(ctx, "processor: shutdown finished")
 }
 
-func (p *OrderProcessor) queueSize() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	return p.queue.Len()
-}
-
 func (p *OrderProcessor) waitForWorkersToFinish() {
 	p.workerPool.Wait()
 	p.wg.Wait()
@@ -446,7 +347,7 @@ func (p *OrderProcessor) waitForWorkersToFinish() {
 
 func (p *OrderProcessor) drainQueue(ctx context.Context) {
 	for {
-		event, ok := p.nextEvent()
+		event, ok := p.state.NextEvent()
 		if !ok {
 			break
 		}
