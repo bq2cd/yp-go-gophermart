@@ -1,0 +1,330 @@
+# yaml-language-server: $schema=https://www.schemastore.org/openapi-3.X.json
+openapi: 3.1.2
+info:
+  title: GopherMart API
+  description: Backend API for an imaginary GopherMart e-store
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/user/register:
+    post:
+      tags:
+        - user_service
+      description: Register a new user and immediately authenticate it
+      operationId: user_service#register_user
+      requestBody:
+        description: Login and password to register a new user
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginPassword"
+      responses:
+        "200":
+          "$ref": "#/components/responses/UserAuthenticated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: User with given login already exists
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/user/login:
+    post:
+      tags:
+        - user_service
+      description: Authenticate a user with given login and password
+      operationId: user_service#authenticate_user
+      requestBody:
+        description: Login and password to authenticate the user
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginPassword"
+      responses:
+        "200":
+          "$ref": "#/components/responses/UserAuthenticated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          description: Incorrect login/password combination
+        "500":
+          $ref: "#/components/responses/ServerError"
+  /api/user/orders:
+    post:
+      tags:
+        - order_service
+      description: Upload new order ID for processing
+      operationId: order_service#upload_order
+      requestBody:
+        description: Order ID
+        required: true
+        content:
+          text/plain:
+            schema:
+              type: string
+              pattern: ^[0-9]+$
+              examples:
+                - "1234567890"
+          application/json:
+            schema:
+              type: integer
+              format: uint64
+              minimum: 1
+              examples:
+                - 1234567890
+      responses:
+        "200":
+          description: Order already uploaded
+        "202":
+          description: Order accepted for processing
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Order was upload by another user
+        "422":
+          description: Invalid order ID format
+        "500":
+          $ref: "#/components/responses/ServerError"
+      security:
+        - jwt_bearer: []
+    get:
+      tags:
+        - order_service
+      description: List all orders uploaded by the current user
+      operationId: order_service#list_orders
+      responses:
+        "200":
+          description: Orders of the current user sorted from the newest to the oldest
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+        "204":
+          description: No orders for the current user
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      security:
+        - jwt_bearer: []
+  /api/user/balance:
+    get:
+      tags:
+        - balance_service
+      description: Get balance of the current user
+      operationId: balance_service#get_balance
+      responses:
+        "200":
+          description: Balance of the current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      security:
+        - jwt_bearer: []
+  /api/user/balance/withdraw:
+    post:
+      tags:
+        - balance_service
+      description: Withdraw specified amount from user's balance
+      operationId: balance_service#withdraw
+      requestBody:
+        description: Order ID and amount to withdraw from the balance
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawalRequest"
+      responses:
+        "200":
+          description: Withdrawal succeeded
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "402":
+          description: Not enough funds
+        "422":
+          description: Invalid order ID
+        "500":
+          $ref: "#/components/responses/ServerError"
+      security:
+        - jwt_bearer: []
+  /api/user/withdrawals:
+    get:
+      tags:
+        - balance_service
+      description: List all prior withdrawal operations for the current user
+      operationId: balance_service#list_withdrawals
+      responses:
+        "200":
+          description: List of prior withdrawals for the current user sorted from the newest to the oldest
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WithdrawalTransaction"
+        "204":
+          description: No withdrawals for the current user
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/ServerError"
+      security:
+        - jwt_bearer: []
+components:
+  responses:
+    UserAuthenticated:
+      description: User successfully authenticated
+      headers:
+        Authorization:
+          schema:
+            description: Base64-encoded JWT bearer token
+            type: string
+            pattern: ^Bearer [^ ]+$
+            examples:
+              - Bearer <base64-encoded-token>
+    ServerError:
+      description: "Internal server error"
+    BadRequest:
+      description: "Bad request parameters"
+    Unauthorized:
+      description: "User is not authorized"
+  schemas:
+    Balance:
+      description: Current value of the balance and the total amount withdrawn
+      type: object
+      properties:
+        current:
+          type: number
+          format: double
+          example: 1.25
+        withdrawn:
+          type: number
+          format: double
+          example: 7.32
+      required:
+        - current
+        - withdrawn
+    LoginPassword:
+      description: A pair of login and password, representing a user
+      type: object
+      properties:
+        login:
+          type: string
+          minLength: 4
+          maxLength: 16
+          examples:
+            - user1
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 32
+          pattern: ^[a-zA-Z]
+          examples:
+            - super-secure-password
+      required:
+        - login
+        - password
+    Order:
+      description: Order status and properties
+      type: object
+      properties:
+        accrual:
+          type: number
+          format: double
+          examples:
+            - 123.56
+        number:
+          type: string
+          pattern: ^[0-9]+$
+          examples:
+            - "1234567890"
+        status:
+          type: string
+          enum:
+            - NEW
+            - PROCESSING
+            - INVALID
+            - PROCESSED
+          examples:
+            - PROCESSING
+            - INVALID
+        uploaded_at:
+          type: string
+          format: date-time
+          examples:
+            - "2020-12-10T15:12:01+03:00"
+          x-lint-ignore: [camel-case-properties]
+      required:
+        - number
+        - status
+        - uploaded_at
+    WithdrawalRequest:
+      description: Request to withdraw funds for the balance for a given order ID
+      type: object
+      properties:
+        order:
+          type: string
+          pattern: ^[0-9]+$
+          examples:
+            - "1234567890"
+        sum:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          examples:
+            - 15.6
+            - 0.5
+      required:
+        - order
+        - sum
+    WithdrawalTransaction:
+      description: Result of a withdrawal action
+      type: object
+      properties:
+        order:
+          type: string
+          pattern: ^[0-9]+$
+          examples:
+            - "1234567890"
+        processed_at:
+          type: string
+          format: date-time
+          examples:
+            - "2020-12-09T16:09:57+03:00"
+          x-lint-ignore: [camel-case-properties]
+        sum:
+          type: number
+          format: double
+          exclusiveMinimum: 0
+          examples:
+            - 300.5
+      required:
+        - order
+        - sum
+        - processed_at
+  securitySchemes:
+    jwt_bearer:
+      description: JWT bearer token specified in 'Authorization' HTTP header
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+tags:
+  - name: user_service
+    description: User registration and authentication
+  - name: order_service
+    description: Order management
+  - name: balance_service
+    description: Balance management
