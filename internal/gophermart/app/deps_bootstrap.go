@@ -1,8 +1,11 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/repository/apiclient"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/inmemory"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/sqldatabase"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
 )
@@ -17,7 +20,7 @@ type BootstrapDeps struct {
 
 // BuildBootstrapDeps initializes [BootstrapDeps] dependencies
 // using provided [ConfigBootstrap].
-func BuildBootstrapDeps(config ConfigBootstrap) BootstrapDeps {
+func BuildBootstrapDeps(config ConfigBootstrap) (BootstrapDeps, error) {
 	builder := &bootstrapBuilder{
 		config: config,
 	}
@@ -29,16 +32,38 @@ type bootstrapBuilder struct {
 	config ConfigBootstrap
 }
 
-func (b *bootstrapBuilder) Build() BootstrapDeps {
-	return BootstrapDeps{
-		Storage:           b.buildStorage(),
-		AccrualClient:     b.buildAccrualClient(),
-		SecretKeyProvider: b.buildSecretKeyProvider(),
+func (b *bootstrapBuilder) Build() (BootstrapDeps, error) {
+	var deps BootstrapDeps
+
+	storage, err := b.buildStorage()
+	if err != nil {
+		return deps, fmt.Errorf("cannot build storage: %w", err)
 	}
+
+	deps.Storage = storage
+	deps.AccrualClient = b.buildAccrualClient()
+	deps.SecretKeyProvider = b.buildSecretKeyProvider()
+
+	return deps, nil
 }
 
-func (b *bootstrapBuilder) buildStorage() *inmemory.Storage {
-	return inmemory.NewStorage()
+//nolint:ireturn
+func (b *bootstrapBuilder) buildStorage() (Storage, error) {
+	if b.config.DatabaseURI == "" {
+		return inmemory.NewStorage(), nil
+	}
+
+	storage, err := sqldatabase.NewStorage(b.config.DatabaseURI)
+	if err != nil {
+		return nil, fmt.Errorf("cannot initialize SQL database: %w", err)
+	}
+
+	err = storage.AutoMigrate()
+	if err != nil {
+		return nil, fmt.Errorf("cannot apply migrations: %w", err)
+	}
+
+	return storage, nil
 }
 
 func (b *bootstrapBuilder) buildAccrualClient() *apiclient.Client {
