@@ -72,7 +72,10 @@ func (c *CLI) buildInfraDeps() (BootstrapDeps, error) {
 		return deps, err
 	}
 
-	deps = BuildBootstrapDeps(cfg)
+	deps, err = BuildBootstrapDeps(cfg)
+	if err != nil {
+		return deps, err
+	}
 
 	return deps, nil
 }

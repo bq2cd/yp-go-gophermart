@@ -8,3 +8,8 @@ const (
 // UserID represents a unique user identifier within the system.
 // Typically, this is a login.
 type UserID string
+
+// String returns [UserID] as string.
+func (uid UserID) String() string {
+	return string(uid)
+}

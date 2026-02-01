@@ -24,6 +24,8 @@ linters:
               desc: Testing libraries are not allowed in production code
             - pkg: github.com/bq2cd/yp-go-gophermart/internal/test/
               desc: Testing libraries are not allowed in production code
+            - pkg: github.com/testcontainers/
+              desc: Testing libraries are not allowed in production code
     wsl_v5:
       allow-first-in-block: true
       allow-whole-block: true
@@ -47,6 +49,7 @@ linters:
           - gosec
           - ireturn
           - revive
+          - varnamelen
 
 formatters:
   enable:

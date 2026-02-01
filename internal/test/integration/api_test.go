@@ -13,9 +13,10 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
 )
 
-func describeOrderedAPISpec(databaseURI string) {
+func describeOrderedAPISpec(databaseURIPtr *string) {
 	var (
 		testCtx *integration.TestContext
+		err     error
 	)
 
 	setupAPIContextFn := func() *integration.APITestContext {
@@ -147,13 +148,16 @@ func describeOrderedAPISpec(databaseURI string) {
 		BeforeAll(func() {
 			listenAddr := getRandomListenAddress()
 
-			testCtx = integration.SetupTestContext(listenAddr, databaseURI)
+			testCtx, err = integration.SetupTestContext(listenAddr, *databaseURIPtr)
+			Expect(err).To(Succeed())
 
 			stopFn := testCtx.Start(GinkgoT().Context())
 
 			DeferCleanup(func() {
 				Expect(stopFn()).To(Succeed())
 			})
+
+			Eventually(testCtx.IsReady).To(BeTrue(), "http server failed to start")
 		})
 
 		describeOrderedAPIUserSpec(

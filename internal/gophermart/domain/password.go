@@ -10,3 +10,8 @@ type PasswordHash []byte
 func (p PasswordPlain) IsEmpty() bool {
 	return len(p) == 0
 }
+
+// Bytes returns [PasswordHash] as bytes.
+func (p PasswordHash) Bytes() []byte {
+	return []byte(p)
+}

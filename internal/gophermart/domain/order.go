@@ -13,6 +13,11 @@ func (oid OrderID) String() string {
 	return strconv.FormatUint(uint64(oid), 10)
 }
 
+// Uint convert [OrderID] to [uint].
+func (oid OrderID) Uint() uint {
+	return uint(oid)
+}
+
 // OrderStatus represent the status of an [Order].
 type OrderStatus int
 
@@ -28,6 +33,11 @@ const (
 	// This is a final status.
 	OrderStatusProcessed
 )
+
+// Int converts [OrderStatus] to [int].
+func (s OrderStatus) Int() int {
+	return int(s)
+}
 
 // Order combines essential information about a user's order in the system.
 type Order struct {

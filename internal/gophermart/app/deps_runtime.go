@@ -7,6 +7,7 @@ import (
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
+	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
 
 // RuntimeDeps describes high-level dependencies needed
@@ -57,7 +58,11 @@ func (b *runtimeBuilder) Build() RuntimeDeps {
 
 func (b *runtimeBuilder) buildOrderServiceAndProcessor() (*service.OrderManager, *OrderProcessor) {
 	queue := workers.NewOrderQueue()
-	processor := workers.NewOrderProcessor(b.infra.Storage, queue, b.infra.AccrualClient)
+	processor := workers.NewOrderProcessor(
+		b.infra.Storage,
+		queue,
+		b.infra.AccrualClient,
+		b.buildOrderProcessorOptions()...)
 
 	orderService := service.NewOrderManager(b.infra.Storage, processor)
 	orderProcessor := &OrderProcessor{
@@ -65,6 +70,16 @@ func (b *runtimeBuilder) buildOrderServiceAndProcessor() (*service.OrderManager,
 	}
 
 	return orderService, orderProcessor
+}
+
+func (b *runtimeBuilder) buildOrderProcessorOptions() []option.Option[workers.OrderProcessor] {
+	options := make([]option.Option[workers.OrderProcessor], 0)
+
+	if b.config.OrderProcessorWorkerPoolSize > 0 {
+		options = append(options, workers.WithOrderProcessorWorkerPoolSize(b.config.OrderProcessorWorkerPoolSize))
+	}
+
+	return options
 }
 
 func (b *runtimeBuilder) buildHTTPServer(orderService handler.OrderService) *HTTPServer {
