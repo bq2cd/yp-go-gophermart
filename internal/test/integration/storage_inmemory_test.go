@@ -5,5 +5,7 @@ import (
 )
 
 var _ = Describe("In-Memory Storage", func() {
-	describeOrderedAPISpec("")
+	var databaseURI string
+
+	describeOrderedAPISpec(&databaseURI)
 })

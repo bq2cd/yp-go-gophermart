@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -34,21 +35,36 @@ func (c *TestContext) Start(baseCtx context.Context) StopFunc {
 	}
 }
 
-func SetupTestContext(listenAddress, databaseURI string) *TestContext {
+func (c *TestContext) IsReady() bool {
+	resp, err := c.APIContext.APIClient.R().Get("/")
+	if err != nil {
+		return false
+	}
+
+	return resp.IsSuccess() || resp.StatusCode() == http.StatusNotFound
+}
+
+func SetupTestContext(listenAddress, databaseURI string) (*TestContext, error) {
 	accrualServer := NewTestAccrualServer()
 
 	cfgInfra := app.ConfigBootstrap{
 		AccrualSystemURL:   accrualServer.URL(),
 		AuthTokenSecretKey: app.MustGenerateRandomSecretKey(),
+		DatabaseURI:        databaseURI,
 	}
 
 	cfgRuntime := app.ConfigRuntime{
-		AuthTokenLifetime:   5 * time.Minute,
-		HTTPListenAddress:   listenAddress,
-		HTTPShutdownTimeout: 500 * time.Millisecond,
+		AuthTokenLifetime:            5 * time.Minute,
+		HTTPListenAddress:            listenAddress,
+		HTTPShutdownTimeout:          500 * time.Millisecond,
+		OrderProcessorWorkerPoolSize: 4,
 	}
 
-	depsInfra := app.BuildBootstrapDeps(cfgInfra)
+	depsInfra, err := app.BuildBootstrapDeps(cfgInfra)
+	if err != nil {
+		return nil, err
+	}
+
 	depsRuntime := app.BuildRuntimeDeps(depsInfra, cfgRuntime)
 
 	serverURL := "http://" + listenAddress
@@ -61,5 +77,5 @@ func SetupTestContext(listenAddress, databaseURI string) *TestContext {
 			orderProcessor:  depsRuntime.OrderProcessor,
 		},
 		httpServer: depsRuntime.HTTPServer,
-	}
+	}, nil
 }
