@@ -1,6 +1,7 @@
 [tools]
 go = "1.24"
 golangci-lint = "2.6"
+vacuum = "0.20"
 
 [tasks.pre-push]
 alias = "default"
@@ -33,6 +34,11 @@ run = [
   "go test -failfast -cover -coverpkg=./... -coverprofile=coverage.out ./...",
   "go tool cover -html=coverage.out",
 ]
+
+[tasks.openapi-lint]
+description = "Lint OpenAPI spec"
+run = "vacuum lint -b api/gophermart.yaml"
+sources = ["api/gophermart.yaml"]
 
 [tasks.mockgen]
 description = """
