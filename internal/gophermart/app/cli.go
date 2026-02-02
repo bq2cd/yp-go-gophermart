@@ -108,6 +108,7 @@ func (c *CLI) getBootstrapConfig() (ConfigBootstrap, error) {
 
 	cfg.AccrualSystemURL = accrualURL
 	cfg.AuthTokenSecretKey = secretKey
+	cfg.DatabaseURI = c.DatabaseURI
 
 	return cfg, nil
 }

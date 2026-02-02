@@ -3,17 +3,26 @@ package app_test
 import (
 	"context"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 	"resty.dev/v3"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/app"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/handler/api"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/sqldatabase"
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/sqldatabase/models"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/testutil"
+)
+
+const (
+	exampleUserLogin    = "test-user"
+	exampleUserPassword = "test-password"
 )
 
 var _ = Describe("Cli Run", func() {
@@ -46,7 +55,7 @@ var _ = Describe("Cli Run", func() {
 			return appCLI.Run(ctx)
 		})
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
 		verifyRunning()
 
@@ -56,13 +65,15 @@ var _ = Describe("Cli Run", func() {
 	}
 
 	expectHTTPRequestsToSucceed := func() {
+		GinkgoHelper()
+
 		resp, err := httpClient.R().Get("/api/user/balance")
 
 		Expect(err).To(Succeed())
 		Expect(resp.StatusCode()).To(Equal(http.StatusUnauthorized))
 
 		resp, err = httpClient.R().
-			SetBody(api.LoginPassword{Login: "test-user", Password: "test-password"}).
+			SetBody(api.LoginPassword{Login: exampleUserLogin, Password: exampleUserPassword}).
 			Post("/api/user/register")
 
 		Expect(err).To(Succeed())
@@ -155,11 +166,50 @@ var _ = Describe("Cli Run", func() {
 				verifyFn = expectHTTPRequestsToSucceed
 			})
 
-			When("all options are valid", func() {
-				It("should succeed and respond to HTTP requests", func() {
-					Expect(err).To(Succeed())
+			Context("in-memory storage backend", func() {
+				When("all options are valid", func() {
+					It("should succeed and respond to HTTP requests", func() {
+						Expect(err).To(Succeed())
+					})
 				})
 			})
+
+			Context("sqlite storage backend", func() {
+				var databaseURI string
+
+				expectDatabaseStateToBeCorrect := func() {
+					GinkgoHelper()
+
+					storage, err := sqldatabase.NewStorage(databaseURI)
+					Expect(err).To(Succeed())
+
+					users, err := sqldatabase.Query[models.User](storage).
+						Find(GinkgoT().Context())
+					Expect(err).To(Succeed())
+					Expect(users).To(HaveLen(1))
+					Expect(users[0].Login).To(Equal(exampleUserLogin))
+					Expect(
+						bcrypt.CompareHashAndPassword(users[0].PasswordHash, []byte(exampleUserPassword)),
+					).To(Succeed())
+				}
+
+				BeforeEach(func() {
+					databaseURI = "sqlite:" + filepath.Join(GinkgoT().TempDir(), "gophermart.db")
+					appCLI.DatabaseURI = databaseURI
+
+					verifyFn = func() {
+						expectHTTPRequestsToSucceed()
+						expectDatabaseStateToBeCorrect()
+					}
+				})
+
+				When("all options are valid", func() {
+					It("should succeed and respond to HTTP requests", func() {
+						Expect(err).To(Succeed())
+					})
+				})
+			})
+
 		})
 	})
 
