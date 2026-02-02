@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-go/master/schema/compose-spec.json
+services:
+  gophermart:
+    build:
+      context: .
+      dockerfile: .docker/gophermart/Dockerfile
+    environment:
+      ACCRUAL_SYSTEM_ADDRESS: http://accrual:8080
+      DATABASE_URI: postgres://postgres:${GOPHERMART_DB_PASSWORD}@db-gophermart:5432/gophermart
+      DEBUG: "true"
+    depends_on:
+      db-gophermart:
+        condition: service_healthy
+        restart: true
+
+  accrual:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: .docker/accrual/Dockerfile
+      platforms:
+        - linux/amd64
+    environment:
+      DATABASE_URI: postgres://postgres:${ACCRUAL_DB_PASSWORD}@db-accrual:5432/accrual
+    depends_on:
+      db-accrual:
+        condition: service_healthy
+        restart: true
+
+  db-gophermart:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${GOPHERMART_DB_PASSWORD}
+      POSTGRES_DB: gophermart
+    volumes:
+      - db-gophermart-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 1s
+      start_interval: 1s
+
+  db-accrual:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${ACCRUAL_DB_PASSWORD}
+      POSTGRES_DB: accrual
+    volumes:
+      - db-accrual-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+      start_period: 1s
+      start_interval: 1s
+
+volumes:
+  db-gophermart-data:
+  db-accrual-data:
