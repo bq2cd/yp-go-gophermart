@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#MISE description="Initial configuration of the project; intended to be run once."
+
+install_deps() {
+  echo "Installing dependencies..."
+  mise install
+  echo
+}
+
+generate_env_file() {
+  if [[ -s .env ]]; then
+    return
+  fi
+
+  echo "Generating '.env' file..."
+
+  cp -v .env.example .env
+
+  perl -pe 's/(^\w+PASSWORD=).*$/$pass=qx(openssl rand -base64 12); chomp($pass); printf("%s%s", $1, $pass)/e' -i .env
+
+  echo
+}
+
+list_available_tasks() {
+  echo "Available tasks:"
+  mise tasks ls
+  echo
+}
+
+main() {
+  install_deps
+  generate_env_file
+  list_available_tasks
+}
+
+main
