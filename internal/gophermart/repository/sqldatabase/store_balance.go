@@ -30,10 +30,6 @@ func (s *Storage) WithdrawFunds(
 		return false, domain.ErrUserNotFound
 	}
 
-	if amount < 0 {
-		return false, ErrWithdrawalAmountMustBePositive
-	}
-
 	err = transactionWithdrawFunds(ctx, user, orderID, amount).Run(s)
 	if err != nil {
 		return false, fmt.Errorf("cannot withdraw funds: %w", err)

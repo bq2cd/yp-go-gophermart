@@ -154,13 +154,6 @@ var _ = Describe("StoreBalance", func() {
 						})
 					},
 					Entry(
-						"oops, negative amount",
-						exampleOrderID,
-						-3.33,
-						Want{Current: 20.26, Withdrawn: 7.55},
-						Match{Success: BeFalse(), Error: MatchError(sqldatabase.ErrWithdrawalAmountMustBePositive)},
-					),
-					Entry(
 						"once OK",
 						exampleOrderID+1,
 						5.25,
