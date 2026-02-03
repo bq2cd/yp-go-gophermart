@@ -18,12 +18,16 @@ func newOrderEventWorkerPool(
 	orderRepository OrderRepository,
 	accrualClient AccrualClient,
 ) *orderEventWorkerPool {
+	var zeroTime time.Time
+
 	workerCtx := &orderEventWorkerContext{
 		orderRepo:       orderRepository,
 		accrualClient:   accrualClient,
 		perEventTimeout: orderProcessorDefaultPerEventTimeout,
 		incomingCh:      nil,
 		callbackCh:      nil,
+		mu:              sync.RWMutex{},
+		pausedUntil:     zeroTime,
 	}
 
 	return &orderEventWorkerPool{

@@ -2,6 +2,7 @@ package workers
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/avast/retry-go/v5"
@@ -16,6 +17,16 @@ type OrderEvent struct {
 	processAfter time.Time
 	retries      uint
 	delayConfig  retry.DelayContext
+}
+
+// LogValue implements [slog.LogValuer] interface to render [OrderEvent] in logs.
+func (ev OrderEvent) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("user_id", ev.orderID.String()),
+		slog.Uint64("order_id", uint64(ev.orderID)),
+		slog.Time("process_after", ev.processAfter),
+		slog.Uint64("retries", uint64(ev.retries)),
+	)
 }
 
 type orderEventResult struct {

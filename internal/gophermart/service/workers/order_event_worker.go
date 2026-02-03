@@ -2,8 +2,10 @@ package workers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	accdomain "github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
@@ -16,6 +18,8 @@ type orderEventWorkerContext struct {
 	perEventTimeout time.Duration
 	incomingCh      <-chan OrderEvent
 	callbackCh      chan<- orderEventResult
+	mu              sync.RWMutex
+	pausedUntil     time.Time
 }
 
 type orderEventWorker struct {
@@ -65,9 +69,9 @@ func (w *orderEventWorker) processEvent(baseCtx context.Context, event OrderEven
 		return nil
 	}
 
-	accOrder, err := w.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
+	accOrder, err := w.makeAccrualClientRequest(ctx, event)
 	if err != nil {
-		return fmt.Errorf("cannot get order status from accrual system: %w", err)
+		return err
 	}
 
 	return w.processAccrualClientOrder(ctx, event.userID, accOrder)
@@ -108,6 +112,31 @@ func (w *orderEventWorker) shouldProcessOrderStatus(
 	return isEligible
 }
 
+func (w *orderEventWorker) makeAccrualClientRequest(ctx context.Context, event OrderEvent) (accdomain.Order, error) {
+	var (
+		accOrder       accdomain.Order
+		err            error
+		rateLimitError *accdomain.RateLimitExceededError
+	)
+
+	w.waitUntilUnpaused(ctx)
+
+	if hasContextExpired(ctx) {
+		return accOrder, fmt.Errorf("cannot send request to accrual system: %w", ctx.Err())
+	}
+
+	accOrder, err = w.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
+
+	switch {
+	case err == nil:
+		return accOrder, nil
+	case errors.As(err, &rateLimitError):
+		w.setPausedUntil(time.Now().Add(rateLimitError.RetryAfter))
+	}
+
+	return accOrder, fmt.Errorf("cannot get order status from accrual system: %w", err)
+}
+
 func (w *orderEventWorker) processAccrualClientOrder(
 	ctx context.Context,
 	userID domain.UserID,
@@ -144,5 +173,29 @@ func (w *orderEventWorker) callbackOnDone(event OrderEvent, err error) {
 	w.callbackCh <- orderEventResult{
 		OrderEvent: event,
 		err:        err,
+	}
+}
+
+func (w *orderEventWorker) setPausedUntil(timestamp time.Time) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.pausedUntil = timestamp
+}
+
+func (w *orderEventWorker) getPausedUntil() time.Time {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	return w.pausedUntil
+}
+
+func (w *orderEventWorker) waitUntilUnpaused(ctx context.Context) {
+	timer := time.NewTimer(time.Until(w.getPausedUntil()))
+
+	select {
+	case <-ctx.Done():
+		timer.Stop()
+	case <-timer.C:
 	}
 }
