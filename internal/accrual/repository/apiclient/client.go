@@ -4,12 +4,24 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
+	"strconv"
+	"time"
 
 	"resty.dev/v3"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/domain"
 	"github.com/bq2cd/yp-go-gophermart/pkg/option"
+)
+
+const (
+	// RetryAfterDefaultDuration defines a delay to wait before retrying a request in case
+	// when HTTP server returns `Retry-After` header but the client fails to parse its value.
+	RetryAfterDefaultDuration = 1 * time.Second
+
+	// RetryAfterHeaderKey defines `Retry-After` HTTP header name.
+	RetryAfterHeaderKey = "Retry-After"
 )
 
 // Client wraps HTTP client and provides an interface to interact with an accrual system.
@@ -24,7 +36,6 @@ func NewClient(baseURL string, options ...option.Option[Client]) *Client {
 	}
 
 	client.setRetryConditions()
-	client.applyRetryConfig(DefaultRetryConfig())
 
 	for _, opt := range options {
 		opt(client)
@@ -93,9 +104,36 @@ func (c *Client) processGetOrderStatusResponse(resp *resty.Response) (OrderRespo
 	case http.StatusNoContent:
 		return orderResp, domain.ErrOrderNotFound
 	case http.StatusTooManyRequests:
-		return orderResp, domain.ErrRateLimitExceeded
+		return orderResp, c.processRetryAfterHeader(resp)
 	default:
 		return orderResp, fmt.Errorf("%w: %s", ErrUnexpectedHTTPStatus, resp.Status())
+	}
+}
+
+func (c *Client) processRetryAfterHeader(resp *resty.Response) *domain.RateLimitExceededError {
+	headerValue := resp.Header().Get(RetryAfterHeaderKey)
+	if headerValue == "" {
+		return &domain.RateLimitExceededError{
+			RetryAfter: 0,
+		}
+	}
+
+	seconds, err := strconv.ParseUint(headerValue, 10, 64)
+	if err != nil {
+		return &domain.RateLimitExceededError{
+			RetryAfter: RetryAfterDefaultDuration,
+		}
+	}
+
+	var duration time.Duration
+	if seconds > math.MaxInt64 {
+		duration = time.Duration(math.MaxInt64)
+	} else {
+		duration = time.Duration(seconds) * time.Second
+	}
+
+	return &domain.RateLimitExceededError{
+		RetryAfter: duration,
 	}
 }
 
@@ -103,24 +141,9 @@ func (c *Client) setRetryConditions() {
 	c.httpClient.SetRetryDefaultConditions(false)
 
 	c.httpClient.AddRetryConditions(
-		func(resp *resty.Response, err error) bool {
-			if err != nil {
-				return false
-			}
-
-			switch resp.StatusCode() {
-			case http.StatusTooManyRequests:
-				return true
-			default:
-				return false
-			}
+		func(_ *resty.Response, _ error) bool {
+			// Delegate retry logic to the caller of [Client].
+			return false
 		},
 	)
-}
-
-func (c *Client) applyRetryConfig(config RetryConfig) {
-	c.httpClient.
-		SetRetryCount(config.Count).
-		SetRetryWaitTime(config.WaitTime).
-		SetRetryMaxWaitTime(config.MaxWaitTime)
 }
