@@ -41,24 +41,30 @@ type TestAccrualDelay struct {
 
 type TestAccrualDelayMap map[domain.OrderID]TestAccrualDelay
 
+type TestAccrualCalls struct {
+	GetOrderStatus uint
+}
+
 /////////////////////////////////////////////////////////////////////////////////
 
 var _ workers.AccrualClient = (*TestAccrualClient)(nil)
 
 type TestAccrualClient struct {
-	mu     sync.RWMutex
-	level  slog.Level
-	data   TestAccrualData
-	errs   TestAccrualErrorMap
-	delays TestAccrualDelayMap
+	mu       sync.RWMutex
+	level    slog.Level
+	data     TestAccrualData
+	errs     TestAccrualErrorMap
+	delays   TestAccrualDelayMap
+	numCalls TestAccrualCalls
 }
 
 func NewTestAccrualClient() *TestAccrualClient {
 	return &TestAccrualClient{
-		level:  testutil.LevelTrace,
-		data:   TestAccrualData{},
-		errs:   TestAccrualErrorMap{},
-		delays: TestAccrualDelayMap{},
+		level:    testutil.LevelTrace,
+		data:     TestAccrualData{},
+		errs:     TestAccrualErrorMap{},
+		delays:   TestAccrualDelayMap{},
+		numCalls: TestAccrualCalls{},
 	}
 }
 
@@ -66,10 +72,22 @@ func (c *TestAccrualClient) Setup(data TestAccrualData, errs TestAccrualErrorMap
 	c.data = data
 	c.errs = errs
 	c.delays = delays
+	c.numCalls = TestAccrualCalls{}
+}
+
+func (c *TestAccrualClient) NumCalls() TestAccrualCalls {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.numCalls
 }
 
 func (c *TestAccrualClient) GetOrderStatus(ctx context.Context, orderID accdomain.OrderID) (accdomain.Order, error) {
 	rtl := testutil.NewReturnLogger2[accdomain.Order, error](c.level, orderID)
+
+	c.mu.Lock()
+	c.numCalls.GetOrderStatus++
+	c.mu.Unlock()
 
 	if ctx.Err() != nil {
 		return rtl.Log(accdomain.Order{}, ctx.Err())

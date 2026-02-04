@@ -113,21 +113,11 @@ var _ = Describe("Accrual Client", func() {
 
 		Context("accrual server is busy", func() {
 			var (
-				header      http.Header
-				retryConfig apiclient.RetryConfig
+				header http.Header
 			)
 
 			BeforeEach(func() {
-				expectedOrder = domain.Order{
-					ID:     orderID,
-					Status: domain.OrderStatusRegistered,
-				}
-
-				retryConfig = apiclient.RetryConfig{
-					Count:       3,
-					WaitTime:    50 * time.Millisecond,
-					MaxWaitTime: 500 * time.Millisecond,
-				}
+				expectedOrder = domain.Order{}
 
 				header = http.Header{}
 
@@ -136,52 +126,56 @@ var _ = Describe("Accrual Client", func() {
 				)
 			})
 
-			When("retries are disabled", func() {
-				BeforeEach(func() {
-					expectedOrder = domain.Order{}
+			expectRetryAfterDuration := func(_duration time.Duration) {
+				Expect(err).To(MatchError(
+					func(_err error) bool {
+						var target *domain.RateLimitExceededError
 
-					retryConfig.Count = 0
+						if !errors.As(_err, &target) {
+							return false
+						}
 
-					options = append(options,
-						apiclient.WithRetryConfig(retryConfig),
-					)
-				})
-
-				It("should return ErrRateLimitExceeded", func() {
-					Expect(err).To(MatchError(domain.ErrRateLimitExceeded))
-				})
-			})
+						return target.RetryAfter == _duration
+					},
+					fmt.Sprintf("expected RateLimitExceededError with duration %v", _duration),
+				))
+			}
 
 			When("server does not return Retry-After header", func() {
 				BeforeEach(func() {
-					options = append(options,
-						apiclient.WithRetryConfig(retryConfig),
-					)
-
-					server.AppendHandlers(
-						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
-					)
+					expectedOrder = domain.Order{}
 				})
 
-				It("should return correct order information", func() {
-					Expect(err).To(Succeed())
+				It("should return RateLimitExceededError with zero duration", func() {
+					expectRetryAfterDuration(0)
 				})
 			})
 
 			When("server returns Retry-After header", func() {
 				BeforeEach(func() {
-					header.Set("Retry-After", "1")
+					header.Set(apiclient.RetryAfterHeaderKey, "10")
 
 					server.AppendHandlers(
 						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
-						ghttp.RespondWithJSONEncoded(http.StatusOK, convertToOrderResponse(expectedOrder)),
 					)
 				})
 
-				It("should return correct order information", func() {
-					Expect(err).To(Succeed())
+				It("should return RateLimitExceededError with correct duration", func() {
+					expectRetryAfterDuration(10 * time.Second)
+				})
+			})
+
+			When("server returns incorrect Retry-After header", func() {
+				BeforeEach(func() {
+					header.Set(apiclient.RetryAfterHeaderKey, "-10")
+
+					server.AppendHandlers(
+						ghttp.RespondWith(http.StatusTooManyRequests, nil, header),
+					)
+				})
+
+				It("should return RateLimitExceededError with default duration", func() {
+					expectRetryAfterDuration(apiclient.RetryAfterDefaultDuration)
 				})
 			})
 		})

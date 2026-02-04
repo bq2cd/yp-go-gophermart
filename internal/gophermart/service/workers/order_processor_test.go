@@ -2,6 +2,7 @@ package workers_test
 
 import (
 	"context"
+	"math"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -402,7 +403,90 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				Entry(nil, 5),
 				Entry(nil, 6),
 			)
+		})
 
+		Context("accrual server constantly overloaded", func() {
+			DescribeTableSubtree("with number of workers",
+				func(_numWorkers int) {
+					BeforeEach(func() {
+						runTimeout = 500 * time.Millisecond
+
+						orderProcessorOptions = append(orderProcessorOptions,
+							workers.WithOrderProcessorPerEventTimeout(600*time.Millisecond),
+							workers.WithOrderProcessorShutdownTimeout(100*time.Millisecond),
+							workers.WithOrderProcessorWorkerPoolSize(uint(_numWorkers)),
+						)
+
+						testCtx.InputOrders = []domain.OrderID{
+							10_123,
+							10_456,
+							10_789,
+							20_123,
+							20_456,
+							20_789,
+						}
+						testCtx.OrderRepoData = fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						}
+						testCtx.AccrualData = fakes.TestAccrualData{
+							10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
+							10_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
+							10_789: {Status: accdomain.OrderStatusRegistered},
+							20_123: {Status: accdomain.OrderStatusRegistered},
+							20_456: {Status: accdomain.OrderStatusRegistered},
+							20_789: {Status: accdomain.OrderStatusRegistered},
+						}
+
+						accrualError := fakes.NewTestErrorCustom(
+							&accdomain.RateLimitExceededError{RetryAfter: 120 * time.Second},
+							math.MaxUint,
+						)
+
+						testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
+							10_123: {GetOrderStatus: accrualError},
+							10_456: {GetOrderStatus: accrualError},
+							10_789: {GetOrderStatus: accrualError},
+							20_123: {GetOrderStatus: accrualError},
+							20_456: {GetOrderStatus: accrualError},
+							20_789: {GetOrderStatus: accrualError},
+						}
+					})
+
+					It("should not process any of the orders", func() {
+						orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						})
+
+						Expect(accrualClient.NumCalls().GetOrderStatus).To(BeNumerically("<=", _numWorkers))
+					})
+				},
+				Entry(nil, 1),
+				Entry(nil, 2),
+				Entry(nil, 3),
+				Entry(nil, 4),
+				Entry(nil, 5),
+				Entry(nil, 6),
+			)
 		})
 	})
 })
