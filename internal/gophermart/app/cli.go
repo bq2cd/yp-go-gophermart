@@ -31,7 +31,7 @@ Example: './secret_key.txt'`,
 type CLI struct {
 	Debug                bool   `env:"DEBUG"                  help:"${debug_help}"`
 	ListenAddress        string `env:"RUN_ADDRESS"            help:"${listen_address_help}"         short:"a" default:"localhost:8080"`
-	DatabaseURI          string `env:"DATABASE_URI"           help:"${database_uri_help}"           short:"d"`
+	DatabaseURI          string `env:"DATABASE_URI"           help:"${database_uri_help}"           short:"d"                          required:""`
 	AccrualSystemAddress string `env:"ACCRUAL_SYSTEM_ADDRESS" help:"${accrual_system_address_help}" short:"r"                          required:""`
 	SecretKeyFile        string `env:"SECRET_KEY_FILE"        help:"${secret_key_file_help}"                                                       type:"existingfile"`
 }
@@ -106,9 +106,14 @@ func (c *CLI) getBootstrapConfig() (ConfigBootstrap, error) {
 		return cfg, err
 	}
 
+	databaseURI, err := c.getDatabaseURI()
+	if err != nil {
+		return cfg, err
+	}
+
 	cfg.AccrualSystemURL = accrualURL
 	cfg.AuthTokenSecretKey = secretKey
-	cfg.DatabaseURI = c.DatabaseURI
+	cfg.DatabaseURI = databaseURI
 
 	return cfg, nil
 }
@@ -133,29 +138,13 @@ func (c *CLI) getAccrualURL() (string, error) {
 		return "", ErrEmptyAccrualSystemAddress
 	}
 
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
+
 	url, err := neturl.Parse(addr)
 	if err != nil {
 		return "", fmt.Errorf("cannot parse accrual system address as url: %w", err)
-	}
-
-	validated, err := c.validateAccrualURL(url.String())
-	if err != nil {
-		return "", fmt.Errorf("cannot validate accrual system url: %w", err)
-	}
-
-	return validated, nil
-}
-
-func (c *CLI) validateAccrualURL(input string) (string, error) {
-	if strings.Contains(input, "://") {
-		return input, nil
-	}
-
-	input = "http://" + input
-
-	url, err := neturl.Parse(input)
-	if err != nil {
-		return "", fmt.Errorf("cannot parse adjusted accrual system url: %w", err)
 	}
 
 	return url.String(), nil
@@ -176,4 +165,18 @@ func (c *CLI) getSecretKeyBytes() ([]byte, error) {
 	}
 
 	return contents, nil
+}
+
+func (c *CLI) getDatabaseURI() (string, error) {
+	databaseURI := c.DatabaseURI
+	if databaseURI == "" {
+		return "", ErrEmptyDatabaseURI
+	}
+
+	url, err := neturl.Parse(databaseURI)
+	if err != nil {
+		return "", fmt.Errorf("cannot parse database URI as url: %w", err)
+	}
+
+	return url.String(), nil
 }

@@ -63,7 +63,7 @@ func describeOrderedAPIBalanceSpec(
 					It("should return proper values", func() {
 						balance := getBalanceFn(_login)
 
-						Expect(balance).To(Equal(stageData.ExpectedBalancesBeforeWithdrawals[_login]))
+						expectAPIBalanceEquivalence(balance, stageData.ExpectedBalancesBeforeWithdrawals[_login])
 					})
 				},
 				stageData.LoginEntries(),
@@ -125,7 +125,7 @@ func describeOrderedAPIBalanceSpec(
 					It("should return proper values", func() {
 						balance := getBalanceFn(_login)
 
-						Expect(balance).To(Equal(stageData.ExpectedBalancesAfterWithdrawals[_login]))
+						expectAPIBalanceEquivalence(balance, stageData.ExpectedBalancesAfterWithdrawals[_login])
 					})
 				},
 				stageData.LoginEntries(),
@@ -207,4 +207,13 @@ func stripAPIWithdrawalTimestamp(transactions []api.WithdrawalTransaction) []API
 	}
 
 	return withoutTimestamp
+}
+
+const (
+	balanceEqualityTolerance = 1e-12
+)
+
+func expectAPIBalanceEquivalence(actualBalance, expectedBalance api.Balance) {
+	Expect(actualBalance.Current).To(BeNumerically("~", expectedBalance.Current, balanceEqualityTolerance))
+	Expect(actualBalance.Withdrawn).To(BeNumerically("~", expectedBalance.Withdrawn, balanceEqualityTolerance))
 }
