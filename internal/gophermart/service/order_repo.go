@@ -10,6 +10,8 @@ import (
 //
 //go:generate mise run mockgen --outfile=order_repository.go OrderRepository
 type OrderRepository interface {
+	// CreateOrder is responsible for both creating a new order and putting this order into a
+	// queue so that it can be returned by [workers.OrderQueue.GetNextProcessableOrder].
 	CreateOrder(ctx context.Context, userID domain.UserID, orderID domain.OrderID) (bool, domain.UserID, error)
 	GetOrders(ctx context.Context, userID domain.UserID) ([]domain.Order, error)
 	GetOrderAccruals(
