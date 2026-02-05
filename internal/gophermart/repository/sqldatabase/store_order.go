@@ -97,37 +97,6 @@ func (s *Storage) GetOrderAccruals(
 	return result, nil
 }
 
-// GetProcessableOrdersPerUser will return a mapping from a user ID to a list of order IDs
-// belonging to that user and requiring further processing, that is, orders with statuses
-// [domain.OrderStatusNew] and [domain.OrderStatusProcessing].
-// The order IDs will be sorted from the oldest to the newest by [domain.Order.CreatedAt] field.
-// This method is being used internally by [workers.OrderProcessor].
-func (s *Storage) GetProcessableOrdersPerUser(
-	ctx context.Context,
-) (map[domain.UserID][]domain.OrderID, error) {
-	result := make(map[domain.UserID][]domain.OrderID)
-
-	searchValues := []int{
-		domain.OrderStatusNew.Int(),
-		domain.OrderStatusProcessing.Int(),
-	}
-
-	orders, err := Query[models.Order](s).
-		Where(generated.Order.Status.In(searchValues...)).
-		Preload("User", nil).
-		Find(ctx)
-	if err != nil {
-		return result, fmt.Errorf("cannot search processable orders: %w", err)
-	}
-
-	for _, order := range orders {
-		userID := domain.UserID(order.User.Login)
-		result[userID] = append(result[userID], domain.OrderID(order.ID))
-	}
-
-	return result, nil
-}
-
 // GetOrderStatus will return order status as recorded in the storage.
 // This method is being used internally by [workers.OrderProcessor].
 // It will return [domain.ErrOrderNotFound] error if such order does not exist,
@@ -138,26 +107,12 @@ func (s *Storage) GetOrderStatus(
 	userID domain.UserID,
 	orderID domain.OrderID,
 ) (domain.OrderStatus, error) {
-	order, err := s.findOrderBelongingToUser(ctx, userID, orderID)
+	order, err := s.getOrderBelongingToUser(ctx, userID, orderID)
 	if err != nil {
 		return domain.OrderStatusInvalid, err
 	}
 
 	return domain.OrderStatus(order.Status), nil
-}
-
-// MarkOrderInvalid will assign [domain.OrderStatusInvalid] status to
-// a given order in the storage.
-// It will return [domain.ErrOrderNotFound] error if such order does not exit,
-// and [domain.ErrUserIDConflict] if order belongs to a different user.
-// Any other error will be returned in case of problems with the storage.
-func (s *Storage) MarkOrderInvalid(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error {
-	order, err := s.findOrderBelongingToUser(ctx, userID, orderID)
-	if err != nil {
-		return err
-	}
-
-	return s.setOrderStatus(ctx, order, domain.OrderStatusInvalid)
 }
 
 // MarkOrderProcessing will assign [domain.OrderStatusProcessing] status to
@@ -166,12 +121,26 @@ func (s *Storage) MarkOrderInvalid(ctx context.Context, userID domain.UserID, or
 // and [domain.ErrUserIDConflict] if order belongs to a different user.
 // Any other error will be returned in case of problems with the storage.
 func (s *Storage) MarkOrderProcessing(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error {
-	order, err := s.findOrderBelongingToUser(ctx, userID, orderID)
+	order, err := s.getOrderBelongingToUser(ctx, userID, orderID)
 	if err != nil {
 		return err
 	}
 
 	return s.setOrderStatus(ctx, order, domain.OrderStatusProcessing)
+}
+
+// MarkOrderInvalid will assign [domain.OrderStatusInvalid] status to
+// a given order in the storage.
+// It will return [domain.ErrOrderNotFound] error if such order does not exit,
+// and [domain.ErrUserIDConflict] if order belongs to a different user.
+// Any other error will be returned in case of problems with the storage.
+func (s *Storage) MarkOrderInvalid(ctx context.Context, userID domain.UserID, orderID domain.OrderID) error {
+	order, err := s.getOrderBelongingToUser(ctx, userID, orderID)
+	if err != nil {
+		return err
+	}
+
+	return transactionMarkOrderInvalid(ctx, order).Run(s)
 }
 
 // MarkOrderProcessed will assign [domain.OrderStatusProcessed] status to
@@ -189,7 +158,12 @@ func (s *Storage) MarkOrderProcessed(
 	orderID domain.OrderID,
 	accrualPoints float64,
 ) error {
-	return transactionMarkOrderProcessed(ctx, userID, orderID, accrualPoints).Run(s)
+	order, err := s.getOrderBelongingToUser(ctx, userID, orderID)
+	if err != nil {
+		return err
+	}
+
+	return transactionMarkOrderProcessed(ctx, order, accrualPoints).Run(s)
 }
 
 func (s *Storage) maybeCreateOrder(
@@ -206,14 +180,9 @@ func (s *Storage) maybeCreateOrder(
 		return false, domain.UserID(order.User.Login), nil
 	}
 
-	//nolint:exhaustruct
-	err = Query[models.Order](s).Create(ctx, &models.Order{
-		ID:     orderID.Uint(),
-		Status: domain.OrderStatusNew.Int(),
-		UserID: user.ID,
-	})
+	err = transactionCreateOrder(ctx, user, orderID).Run(s)
 	if err != nil {
-		return false, domain.UserIDEmptyValue, fmt.Errorf("cannot create order: %w", err)
+		return false, domain.UserIDEmptyValue, err
 	}
 
 	return true, domain.UserID(user.Login), nil
@@ -235,7 +204,7 @@ func (s *Storage) findOrder(ctx context.Context, orderID domain.OrderID) (models
 	}
 }
 
-func (s *Storage) findOrderBelongingToUser(
+func (s *Storage) getOrderBelongingToUser(
 	ctx context.Context,
 	userID domain.UserID,
 	orderID domain.OrderID,
@@ -276,7 +245,7 @@ func (s *Storage) setOrderStatus(ctx context.Context, order models.Order, status
 }
 
 func (s *Storage) setAccrualPoints(ctx context.Context, order models.Order, amount float64) error {
-	accrual, err := Query[models.Accrual](s).
+	accrual, err := Query[models.Accrual](s, clauseLockForUpdate()).
 		Where(generated.Accrual.OrderID.Eq(order.ID)).
 		First(ctx)
 
@@ -300,55 +269,4 @@ func (s *Storage) setAccrualPoints(ctx context.Context, order models.Order, amou
 	}
 
 	return nil
-}
-
-// ConvertModelOrderToDomainOrder performs conversion of [models.Order]
-// to [domain.Order] object.
-func ConvertModelOrderToDomainOrder(modelOrder models.Order) domain.Order {
-	return domain.Order{
-		ID:        domain.OrderID(modelOrder.ID),
-		Status:    domain.OrderStatus(modelOrder.Status),
-		CreatedAt: modelOrder.CreatedAt,
-	}
-}
-
-func makeDomainOrders(modelOrders []models.Order) []domain.Order {
-	orders := make([]domain.Order, 0, len(modelOrders))
-
-	for _, modelOrder := range modelOrders {
-		orders = append(orders, ConvertModelOrderToDomainOrder(modelOrder))
-	}
-
-	return orders
-}
-
-func transactionMarkOrderProcessed(
-	ctx context.Context,
-	userID domain.UserID,
-	orderID domain.OrderID,
-	accrualPoints float64,
-) Transaction {
-	return Transaction{fn: func(stx *Storage) error {
-		order, err := stx.findOrderBelongingToUser(ctx, userID, orderID)
-		if err != nil {
-			return err
-		}
-
-		err = stx.setOrderStatus(ctx, order, domain.OrderStatusProcessed)
-		if err != nil {
-			return err
-		}
-
-		err = stx.setAccrualPoints(ctx, order, accrualPoints)
-		if err != nil {
-			return err
-		}
-
-		err = stx.maybeUpdateBalance(ctx, order.User, accrualPoints, 0)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}}
 }

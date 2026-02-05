@@ -1,8 +1,6 @@
 package sqldatabase_test
 
 import (
-	"maps"
-	"slices"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -59,6 +57,24 @@ var _ = Describe("StoreOrder", func() {
 				Expect(orders[0].User).To(Equal(user))
 			}
 
+			expectProcessableOrderExistence := func() {
+				orders, err := sqldatabase.Query[models.ProcessableOrder](storage).
+					Where(generated.ProcessableOrder.OrderID.Eq(orderID.Uint())).
+					Preload("Order", nil).
+					Preload("Order.User", nil).
+					Find(GinkgoT().Context())
+
+				Expect(err).To(Succeed())
+				Expect(orders).To(HaveLen(1))
+				Expect(orders[0].OrderID).To(Equal(orderID.Uint()))
+				Expect(orders[0].Order.ID).To(Equal(orderID.Uint()))
+				Expect(orders[0].ProcessAfter).To(BeTemporally(">=", startTime))
+				Expect(orders[0].ProcessAfter).To(BeTemporally("<=", time.Now()))
+				Expect(orders[0].Retries).To(BeZero())
+				Expect(orders[0].Order.UserID).To(Equal(user.ID))
+				Expect(orders[0].Order.User).To(Equal(user))
+			}
+
 			BeforeAll(func() {
 				user = ensureUserExists(storage, exampleUserLogin)
 				user2 = ensureUserExists(storage, exampleUserLogin+"-r2d2")
@@ -81,6 +97,7 @@ var _ = Describe("StoreOrder", func() {
 					Expect(created).To(BeTrue(), "order should be created")
 
 					expectCorrectOrderData()
+					expectProcessableOrderExistence()
 				})
 			})
 
@@ -104,6 +121,7 @@ var _ = Describe("StoreOrder", func() {
 					Expect(created).To(BeFalse(), "order should not be created")
 
 					expectCorrectOrderData()
+					expectProcessableOrderExistence()
 				})
 
 				When("owner is the same", func() {
@@ -221,56 +239,12 @@ var _ = Describe("StoreOrder", func() {
 			})
 		})
 
-		Context("getting processable orders per user", Ordered, func() {
-			var (
-				seedData              map[string]map[uint]domain.OrderStatus
-				expectedOrdersPerUser map[domain.UserID][]domain.OrderID
-			)
-
-			BeforeAll(func() {
-				seedData = map[string]map[uint]domain.OrderStatus{
-					"user-1": {
-						100_03: domain.OrderStatusNew,
-						100_05: domain.OrderStatusProcessing,
-					},
-					"user-2": {
-						200_05: domain.OrderStatusProcessed,
-						200_07: domain.OrderStatusInvalid,
-					},
-					"user-3": {
-						300_00: domain.OrderStatusProcessing,
-						300_02: domain.OrderStatusProcessed,
-						300_04: domain.OrderStatusNew,
-					},
-					"user-4": {},
-				}
-				expectedOrdersPerUser = map[domain.UserID][]domain.OrderID{
-					"user-1": {100_03, 100_05},
-					"user-3": {300_00, 300_04},
-				}
-
-				for login, orders := range seedData {
-					user := ensureUserExists(storage, login)
-
-					for _, orderID := range slices.Sorted(maps.Keys(orders)) {
-						order := ensureOrderExists(storage, user.Login, orderID)
-						ensureOrderStatus(storage, order, orders[orderID])
-					}
-				}
-			})
-
-			It("should return only processable orders for all users", func() {
-				orderPerUser, err := storage.GetProcessableOrdersPerUser(GinkgoT().Context())
-				Expect(err).To(Succeed())
-				Expect(orderPerUser).To(Equal(expectedOrdersPerUser))
-			})
-		})
-
 		Context("manipulating a single order", Ordered, func() {
 			var (
 				userID                                  domain.UserID
 				orderID, initialOrderID, missingOrderID domain.OrderID
 				user                                    models.User
+				order                                   models.Order
 				err                                     error
 			)
 
@@ -280,13 +254,15 @@ var _ = Describe("StoreOrder", func() {
 				missingOrderID = domain.OrderID(9876)
 
 				user = ensureUserExists(storage, userID.String())
-				order := ensureOrderExists(storage, user.Login, initialOrderID.Uint())
+				order = ensureOrderExists(storage, user.Login, initialOrderID.Uint())
 
 				Expect(order.Status).To(Equal(domain.OrderStatusNew.Int()))
 			})
 
 			BeforeEach(func() {
 				orderID = initialOrderID
+
+				ensureProcessableOrderState(storage, order, time.Time{}, 0)
 			})
 
 			Context("getting order status", func() {
@@ -322,15 +298,29 @@ var _ = Describe("StoreOrder", func() {
 					Expect(order.Status).To(Equal(_status.Int()))
 				}
 
-				Context("marking order as invalid", func() {
+				expectProcessableOrder := func(_exists bool) {
+					orders, err := sqldatabase.Query[models.ProcessableOrder](storage).
+						Where(generated.ProcessableOrder.OrderID.Eq(orderID.Uint())).
+						Find(GinkgoT().Context())
+					Expect(err).To(Succeed())
+					if _exists {
+						Expect(orders).To(HaveLen(1))
+						Expect(orders[0].OrderID).To(Equal(orderID.Uint()))
+					} else {
+						Expect(orders).To(BeEmpty())
+					}
+				}
+
+				Context("marking order as processing", func() {
 					JustBeforeEach(func() {
-						err = storage.MarkOrderInvalid(GinkgoT().Context(), userID, orderID)
+						err = storage.MarkOrderProcessing(GinkgoT().Context(), userID, orderID)
 					})
 
 					When("order exists", func() {
 						It("should set status to proper value", func() {
 							Expect(err).To(Succeed())
-							expectOrderStatus(domain.OrderStatusInvalid)
+							expectOrderStatus(domain.OrderStatusProcessing)
+							expectProcessableOrder(true)
 						})
 					})
 
@@ -345,25 +335,26 @@ var _ = Describe("StoreOrder", func() {
 					})
 				})
 
-				Context("marking order as processing", func() {
+				Context("marking order as invalid", func() {
 					JustBeforeEach(func() {
-						err = storage.MarkOrderProcessing(GinkgoT().Context(), userID, orderID)
+						err = storage.MarkOrderInvalid(GinkgoT().Context(), userID, orderID)
 					})
 
 					When("order exists", func() {
 						It("should set status to proper value", func() {
 							Expect(err).To(Succeed())
-							expectOrderStatus(domain.OrderStatusProcessing)
-						})
-					})
-
-					When("order does not exist", func() {
-						BeforeEach(func() {
-							orderID = missingOrderID
+							expectOrderStatus(domain.OrderStatusInvalid)
+							expectProcessableOrder(false)
 						})
 
-						It("should return ErrOrderNotFound", func() {
-							Expect(err).To(MatchError(domain.ErrOrderNotFound))
+						When("order does not exist", func() {
+							BeforeEach(func() {
+								orderID = missingOrderID
+							})
+
+							It("should return ErrOrderNotFound", func() {
+								Expect(err).To(MatchError(domain.ErrOrderNotFound))
+							})
 						})
 					})
 				})
@@ -412,6 +403,7 @@ var _ = Describe("StoreOrder", func() {
 										expectOrderStatus(domain.OrderStatusProcessed)
 										expectAccrualPoints(_points)
 										expectUserBalance(_balance)
+										expectProcessableOrder(false)
 									},
 								)
 							},
@@ -452,6 +444,11 @@ func ensureOrderExists(storage *sqldatabase.Storage, login string, orderID uint)
 
 	order, err := sqldatabase.Query[models.Order](storage).
 		Where(generated.Order.ID.Eq(orderID)).
+		First(GinkgoT().Context())
+	Expect(err).To(Succeed())
+
+	_, err = sqldatabase.Query[models.ProcessableOrder](storage).
+		Where(generated.ProcessableOrder.OrderID.Eq(orderID)).
 		First(GinkgoT().Context())
 	Expect(err).To(Succeed())
 

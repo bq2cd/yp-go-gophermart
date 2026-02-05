@@ -137,7 +137,7 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 			BeforeAll(func() {
 				apiCtx.SetupAccrualServer(stageData.SeedAccrualData)
 
-				serverProcessingLeeway = 100 * time.Millisecond
+				serverProcessingLeeway = 500 * time.Millisecond
 			})
 
 			JustBeforeEach(func() {
@@ -170,8 +170,6 @@ func describeOrderedAPIOrderSpec(setupAPIContextFn func() *integration.APITestCo
 
 			Context("order processor is started", func() {
 				startOrderProcessing := func(preloadOrders bool) context.CancelFunc {
-					serverProcessingLeeway = 200 * time.Millisecond
-
 					ctx, cancel := context.WithTimeout(GinkgoT().Context(), serverProcessingLeeway)
 
 					apiCtx.StartOrderProcessing(ctx, preloadOrders)

@@ -7,13 +7,11 @@ import (
 )
 
 var Balance = struct {
-	ID        field.Number[uint]
+	UserID    field.Number[uint]
 	Current   field.Number[float64]
 	Withdrawn field.Number[float64]
-	UserID    field.Number[uint]
 }{
-	ID:        field.Number[uint]{}.WithColumn("id"),
+	UserID:    field.Number[uint]{}.WithColumn("user_id"),
 	Current:   field.Number[float64]{}.WithColumn("current"),
 	Withdrawn: field.Number[float64]{}.WithColumn("withdrawn"),
-	UserID:    field.Number[uint]{}.WithColumn("user_id"),
 }

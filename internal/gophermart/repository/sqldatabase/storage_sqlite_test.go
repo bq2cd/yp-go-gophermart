@@ -3,6 +3,7 @@ package sqldatabase_test
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"gorm.io/gorm/logger"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/sqldatabase"
 	"github.com/bq2cd/yp-go-gophermart/internal/test/spechelpers"
@@ -26,7 +27,7 @@ func createTempStorage() *TempStorage {
 	Expect(err).To(Succeed())
 
 	return &TempStorage{
-		Storage: storage,
+		Storage: storage.WithLogLevel(logger.Silent),
 		Cleanup: tempDir.Cleanup,
 	}
 }
