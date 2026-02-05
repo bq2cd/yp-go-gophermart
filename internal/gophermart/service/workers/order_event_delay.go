@@ -19,25 +19,27 @@ var _ retry.DelayContext = (*OrderEventDelayConfig)(nil)
 
 // OrderEventDelayConfig implements [retry.DelayContext] interface.
 type OrderEventDelayConfig struct {
-	initialDelay time.Duration
-	maxJitter    time.Duration
-	maxDelay     time.Duration
-	maxBackOffN  uint
+	initialDelay           time.Duration
+	maxJitter              time.Duration
+	maxDelay               time.Duration
+	maxBackOffN            uint
+	minRetriesUntilBackOff uint
 }
 
 // NewOrderEventDelayConfig creates an instance of [OrderEventDelayConfig].
 // By default, it sets initial delay and max jitter to 100 milliseconds,
 // and max delay to 0 (which means unlimited retries).
-func NewOrderEventDelayConfig(opts ...option.Option[OrderEventDelayConfig]) *OrderEventDelayConfig {
-	config := &OrderEventDelayConfig{
-		initialDelay: orderEventDelayInitialDelay,
-		maxJitter:    orderEventDelayMaxJitter,
-		maxDelay:     0,
-		maxBackOffN:  0,
+func NewOrderEventDelayConfig(opts ...option.Option[OrderEventDelayConfig]) OrderEventDelayConfig {
+	config := OrderEventDelayConfig{
+		initialDelay:           orderEventDelayInitialDelay,
+		maxJitter:              orderEventDelayMaxJitter,
+		maxDelay:               0,
+		maxBackOffN:            0,
+		minRetriesUntilBackOff: orderEventDelayMinRetriesUntilBackOff,
 	}
 
 	for _, opt := range opts {
-		opt(config)
+		opt(&config)
 	}
 
 	// Shameless copy-n-paste from retry-go internals.
@@ -46,24 +48,34 @@ func NewOrderEventDelayConfig(opts ...option.Option[OrderEventDelayConfig]) *Ord
 	return config
 }
 
-// WithOrderEventInitialDelay return an option to configure initial delay for [OrderEventDelayConfig].
+// WithOrderEventInitialDelay returns an option to configure initial delay for [OrderEventDelayConfig].
 func WithOrderEventInitialDelay(delay time.Duration) option.Option[OrderEventDelayConfig] {
 	return func(c *OrderEventDelayConfig) {
 		c.initialDelay = delay
 	}
 }
 
-// WithOrderEventMaxJitter return an option to configure maximum jitter for [OrderEventDelayConfig].
+// WithOrderEventMaxJitter returns an option to configure maximum jitter for [OrderEventDelayConfig].
 func WithOrderEventMaxJitter(jitter time.Duration) option.Option[OrderEventDelayConfig] {
 	return func(c *OrderEventDelayConfig) {
 		c.maxJitter = jitter
 	}
 }
 
-// WithOrderEventMaxDelay return an option to configure maximum delay for [OrderEventDelayConfig].
+// WithOrderEventMaxDelay returns an option to configure maximum delay for [OrderEventDelayConfig].
 func WithOrderEventMaxDelay(delay time.Duration) option.Option[OrderEventDelayConfig] {
 	return func(c *OrderEventDelayConfig) {
 		c.maxDelay = delay
+	}
+}
+
+// WithOrderEventMinRetriesUntilBackOff returns an option to configure [OrderEventDelayConfig] with
+// minimum retry attempts until [retry.BackOffDelay] strategy kicks in.
+// Until that many attempts have passed, a simpler [retry.RandomDelay] strategy will be at work.
+// This method is exposed primarily for testing purposes.
+func WithOrderEventMinRetriesUntilBackOff(retries uint) option.Option[OrderEventDelayConfig] {
+	return func(c *OrderEventDelayConfig) {
+		c.minRetriesUntilBackOff = retries
 	}
 }
 
@@ -85,4 +97,10 @@ func (c *OrderEventDelayConfig) MaxDelay() time.Duration {
 // MaxBackOffN returns maximum back-off factor, as per [retry.DelayContext] contract.
 func (c *OrderEventDelayConfig) MaxBackOffN() uint {
 	return c.maxBackOffN
+}
+
+// MinRetriesUntilBackOff returns minimum retry attempts needed to activate [retry.BackOffDelay] strategy.
+// Until that many attempts have passed, a simpler [retry.RandomDelay] strategy will be at work.
+func (c *OrderEventDelayConfig) MinRetriesUntilBackOff() uint {
+	return c.minRetriesUntilBackOff
 }

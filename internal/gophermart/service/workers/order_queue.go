@@ -1,20 +1,19 @@
 package workers
 
-import "github.com/gammazero/deque"
+import (
+	"context"
+	"time"
 
-// OrderQueue defines an in-memory queue as a buffer for
-// incoming [OrderEvent] events.
-// This queue is assumed to be not thread-safe, so it needs
-// to be protected with locks.
+	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
+)
+
+// OrderQueue provides a way for [OrderProcessor] to obtain the next
+// order that needs processing and to postpone processing of a given
+// order until a later date (e.g. due to errors).
 type OrderQueue interface {
-	PushBack(event OrderEvent)
-	// PopFront panics on empty queue.
-	// Use [Len] method to check if queue is empty.
-	PopFront() OrderEvent
-	Len() int
-}
-
-// NewOrderQueue returns a concrete implementation of [OrderQueue] interface.
-func NewOrderQueue() *deque.Deque[OrderEvent] {
-	return new(deque.Deque[OrderEvent])
+	// GetNextProcessableOrder returns a [domain.ProcessableOrder] and a number of prior retries for it.
+	GetNextProcessableOrder(ctx context.Context, excludeIDs []domain.OrderID) (domain.ProcessableOrder, uint, error)
+	// PostponeOrderProcessing postpones given order processing to a later timestamp.
+	// It will increment number of retries internally.
+	PostponeOrderProcessing(ctx context.Context, order domain.ProcessableOrder, processAfter time.Time) error
 }
