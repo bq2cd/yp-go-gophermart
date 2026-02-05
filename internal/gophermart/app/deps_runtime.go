@@ -57,10 +57,9 @@ func (b *runtimeBuilder) Build() RuntimeDeps {
 }
 
 func (b *runtimeBuilder) buildOrderServiceAndProcessor() (*service.OrderManager, *OrderProcessor) {
-	queue := workers.NewOrderQueue()
 	processor := workers.NewOrderProcessor(
 		b.infra.Storage,
-		queue,
+		b.infra.Storage,
 		b.infra.AccrualClient,
 		b.buildOrderProcessorOptions()...)
 
