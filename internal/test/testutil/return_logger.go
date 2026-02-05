@@ -28,6 +28,8 @@ func (l *returnLoggerBase) log(retValues ...any) {
 	slog.Log(context.Background(), l.level, fname, argsToKVPairs(args...)...)
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+
 // ReturnLogger implements a convenience wrapper to log provided return value
 // and return it without any modifications.
 type ReturnLogger[T any] struct {
@@ -54,6 +56,8 @@ func (l *ReturnLogger[T]) Log(ret T) T {
 	return ret
 }
 
+/////////////////////////////////////////////////////////////////////////////////
+
 // ReturnLogger2 implements a convenience wrapper to log provided return values (two values)
 // and return them without any modifications.
 type ReturnLogger2[A, B any] struct {
@@ -79,6 +83,36 @@ func (l *ReturnLogger2[A, B]) Log(ret1 A, ret2 B) (A, B) {
 
 	return ret1, ret2
 }
+
+/////////////////////////////////////////////////////////////////////////////////
+
+// ReturnLogger3 implements a convenience wrapper to log provided return values (three values)
+// and return them without any modifications.
+type ReturnLogger3[A, B, C any] struct {
+	returnLoggerBase
+}
+
+// NewReturnLogger3 creates an instance of [ReturnLogger3].
+func NewReturnLogger3[A, B, C any](level slog.Level, args ...any) *ReturnLogger3[A, B, C] {
+	return &ReturnLogger3[A, B, C]{
+		returnLoggerBase: returnLoggerBase{
+			level: level,
+			args:  args,
+		},
+	}
+}
+
+// Log performs logging of a provided return values and returns them
+// as is.
+//
+//nolint:ireturn
+func (l *ReturnLogger3[A, B, C]) Log(ret1 A, ret2 B, ret3 C) (A, B, C) {
+	l.log(ret1, ret2, ret3)
+
+	return ret1, ret2, ret3
+}
+
+/////////////////////////////////////////////////////////////////////////////////
 
 func argsToKVPairs(args ...any) []any {
 	kvPairs := make([]any, 0, len(args)*argsToKVPairsCapacityCoefficient)

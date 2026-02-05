@@ -85,44 +85,75 @@ var _ = Describe("OrderRepository", func() {
 		})
 	}
 
-	Describe("GetProcessableOrdersPerUser", func() {
+	Describe("GetNextProcessableOrder", func() {
 		var (
-			actualOrders, expectedOrders map[domain.UserID][]domain.OrderID
+			excludeIDs                     []domain.OrderID
+			queueProcessAfter              map[domain.OrderID]time.Time
+			queueRetries                   map[domain.OrderID]uint
+			actualOrder, expectedOrder     domain.ProcessableOrder
+			actualRetries, expectedRetries uint
 		)
 
 		BeforeEach(func() {
+			excludeIDs = []domain.OrderID{}
+			queueProcessAfter = map[domain.OrderID]time.Time{}
+			queueRetries = map[domain.OrderID]uint{}
+
 			actionFn = func(ctx context.Context) {
-				actualOrders, err = orderRepo.GetProcessableOrdersPerUser(ctx)
+				orderRepo.SetupQueue(queueProcessAfter, queueRetries)
+
+				actualOrder, actualRetries, err = orderRepo.GetNextProcessableOrder(ctx, excludeIDs)
 			}
 		})
 
 		whenActionContextExpired(func() {
-			Expect(actualOrders).To(BeEmpty())
+			Expect(actualOrder).To(Equal(domain.ProcessableOrder{}))
+			Expect(actualRetries).To(BeZero())
 		})
 
 		When("users have some unprocessed orders", func() {
 			BeforeEach(func() {
 				testData = fakes.TestOrderRepoData{
 					Orders: fakes.TestOrderMap{
-						domain.OrderID(10_123): {UserID: "user1", Status: domain.OrderStatusNew},
-						domain.OrderID(10_456): {UserID: "user1", Status: domain.OrderStatusProcessing},
-						domain.OrderID(10_789): {UserID: "user1", Status: domain.OrderStatusProcessed},
-						domain.OrderID(10_900): {UserID: "user1", Status: domain.OrderStatusInvalid},
-						domain.OrderID(20_789): {UserID: "user2", Status: domain.OrderStatusProcessed},
-						domain.OrderID(20_900): {UserID: "user2", Status: domain.OrderStatusInvalid},
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						10_456: {UserID: "user1", Status: domain.OrderStatusProcessing},
+						10_789: {UserID: "user1", Status: domain.OrderStatusProcessed},
+						10_900: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						20_789: {UserID: "user2", Status: domain.OrderStatusProcessed},
+						20_900: {UserID: "user2", Status: domain.OrderStatusInvalid},
+						30_123: {UserID: "user3", Status: domain.OrderStatusProcessing},
 					},
 				}
-
-				expectedOrders = map[domain.UserID][]domain.OrderID{
-					"user1": {10_123, 10_456},
-				}
 			})
-			It("should return only orders that need processing", func() {
-				Expect(err).To(Succeed())
 
-				for userID := range expectedOrders {
-					Expect(actualOrders[userID]).To(ConsistOf(expectedOrders[userID]))
-				}
+			Context("exclude IDs are not provided", func() {
+				BeforeEach(func() {
+					queueProcessAfter[10_123] = time.Now().Add(time.Hour)
+					queueRetries[10_456] = 5
+					expectedOrder = domain.ProcessableOrder{UserID: "user1", OrderID: 10_456}
+					expectedRetries = 5
+				})
+
+				It("should return first available order", func() {
+					Expect(err).To(Succeed())
+					Expect(actualOrder).To(Equal(expectedOrder))
+					Expect(actualRetries).To(Equal(expectedRetries))
+				})
+			})
+
+			Context("exclude IDs are provided", func() {
+				BeforeEach(func() {
+					queueProcessAfter[10_456] = time.Now().Add(time.Hour)
+					excludeIDs = []domain.OrderID{10_123}
+					expectedOrder = domain.ProcessableOrder{UserID: "user3", OrderID: 30_123}
+					expectedRetries = 0
+				})
+
+				It("should return next available order", func() {
+					Expect(err).To(Succeed())
+					Expect(actualOrder).To(Equal(expectedOrder))
+					Expect(actualRetries).To(Equal(expectedRetries))
+				})
 			})
 		})
 
@@ -130,18 +161,112 @@ var _ = Describe("OrderRepository", func() {
 			BeforeEach(func() {
 				testData = fakes.TestOrderRepoData{
 					Orders: fakes.TestOrderMap{
-						domain.OrderID(10_123): {UserID: "user1", Status: domain.OrderStatusInvalid},
-						domain.OrderID(10_456): {UserID: "user1", Status: domain.OrderStatusProcessed},
-						domain.OrderID(10_789): {UserID: "user1", Status: domain.OrderStatusProcessed},
-						domain.OrderID(10_900): {UserID: "user1", Status: domain.OrderStatusInvalid},
-						domain.OrderID(20_789): {UserID: "user2", Status: domain.OrderStatusProcessed},
-						domain.OrderID(20_900): {UserID: "user2", Status: domain.OrderStatusInvalid},
+						10_123: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						10_456: {UserID: "user1", Status: domain.OrderStatusProcessed},
+						10_789: {UserID: "user1", Status: domain.OrderStatusProcessed},
+						10_900: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						20_789: {UserID: "user2", Status: domain.OrderStatusProcessed},
+						20_900: {UserID: "user2", Status: domain.OrderStatusInvalid},
 					},
 				}
 			})
 			It("should return empty result", func() {
+				Expect(err).To(MatchError(ContainSubstring("no processable orders")))
+				Expect(actualOrder).To(Equal(domain.ProcessableOrder{}))
+				Expect(actualRetries).To(BeZero())
+			})
+		})
+	})
+
+	Describe("PostponeOrderProcessing", func() {
+		var (
+			queueProcessAfter map[domain.OrderID]time.Time
+			queueRetries      map[domain.OrderID]uint
+			userID            domain.UserID
+			orderID           domain.OrderID
+			processAfter      time.Time
+		)
+
+		BeforeEach(func() {
+			queueProcessAfter = map[domain.OrderID]time.Time{
+				orderID: time.Now(),
+			}
+			queueRetries = map[domain.OrderID]uint{
+				orderID: 3,
+			}
+
+			processAfter = time.Now().Add(time.Hour)
+
+			actionFn = func(ctx context.Context) {
+				orderRepo.SetupQueue(queueProcessAfter, queueRetries)
+
+				order := domain.ProcessableOrder{UserID: userID, OrderID: orderID}
+
+				err = orderRepo.PostponeOrderProcessing(ctx, order, processAfter)
+			}
+		})
+
+		whenActionContextExpired()
+
+		When("order processing is being postponed", func() {
+			var queueData map[domain.OrderID]fakes.TestQueueData
+
+			BeforeEach(func() {
+				testData = fakes.TestOrderRepoData{
+					Orders: fakes.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						10_456: {UserID: "user1", Status: domain.OrderStatusProcessing},
+						10_789: {UserID: "user1", Status: domain.OrderStatusProcessed},
+						10_900: {UserID: "user1", Status: domain.OrderStatusInvalid},
+						20_789: {UserID: "user2", Status: domain.OrderStatusProcessed},
+						20_900: {UserID: "user2", Status: domain.OrderStatusInvalid},
+						30_123: {UserID: "user3", Status: domain.OrderStatusProcessing},
+					},
+				}
+			})
+
+			JustBeforeEach(func() {
+				queueData = orderRepo.GetQueueData()
+			})
+
+			JustAfterEach(func() {
 				Expect(err).To(Succeed())
-				Expect(actualOrders).To(BeEmpty())
+			})
+
+			Context("order is in processable state", func() {
+				BeforeEach(func() {
+					userID = "user1"
+					orderID = 10_456
+				})
+
+				It("should update processAfter time and increment retries", func() {
+					Expect(queueData[orderID].ProcessAfter).To(Equal(processAfter))
+					Expect(queueData[orderID].Retries).To(Equal(queueRetries[orderID] + 1))
+				})
+			})
+
+			Context("order has already been processed", func() {
+				BeforeEach(func() {
+					userID = "user2"
+					orderID = 20_900
+				})
+
+				It("should do nothing", func() {
+					Expect(queueData[orderID].ProcessAfter).To(Equal(queueProcessAfter[orderID]))
+					Expect(queueData[orderID].Retries).To(Equal(queueRetries[orderID]))
+				})
+			})
+
+			Context("order does not exist", func() {
+				BeforeEach(func() {
+					userID = "user5"
+					orderID = 50_900
+				})
+
+				It("should do nothing", func() {
+					Expect(queueData[orderID].ProcessAfter).To(BeZero())
+					Expect(queueData[orderID].Retries).To(BeZero())
+				})
 			})
 		})
 	})
