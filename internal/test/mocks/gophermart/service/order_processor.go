@@ -40,40 +40,38 @@ func (m *MockOrderProcessor) EXPECT() *MockOrderProcessorMockRecorder {
 	return m.recorder
 }
 
-// EnqueueOrder mocks base method.
-func (m *MockOrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.OrderID) bool {
+// NewOrderArrived mocks base method.
+func (m *MockOrderProcessor) NewOrderArrived(userID domain.UserID, orderID domain.OrderID) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnqueueOrder", userID, orderID)
-	ret0, _ := ret[0].(bool)
-	return ret0
+	m.ctrl.Call(m, "NewOrderArrived", userID, orderID)
 }
 
-// EnqueueOrder indicates an expected call of EnqueueOrder.
-func (mr *MockOrderProcessorMockRecorder) EnqueueOrder(userID, orderID any) *MockOrderProcessorEnqueueOrderCall {
+// NewOrderArrived indicates an expected call of NewOrderArrived.
+func (mr *MockOrderProcessorMockRecorder) NewOrderArrived(userID, orderID any) *MockOrderProcessorNewOrderArrivedCall {
 	mr.mock.ctrl.T.Helper()
-	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueOrder", reflect.TypeOf((*MockOrderProcessor)(nil).EnqueueOrder), userID, orderID)
-	return &MockOrderProcessorEnqueueOrderCall{Call: call}
+	call := mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewOrderArrived", reflect.TypeOf((*MockOrderProcessor)(nil).NewOrderArrived), userID, orderID)
+	return &MockOrderProcessorNewOrderArrivedCall{Call: call}
 }
 
-// MockOrderProcessorEnqueueOrderCall wrap *gomock.Call
-type MockOrderProcessorEnqueueOrderCall struct {
+// MockOrderProcessorNewOrderArrivedCall wrap *gomock.Call
+type MockOrderProcessorNewOrderArrivedCall struct {
 	*gomock.Call
 }
 
 // Return rewrite *gomock.Call.Return
-func (c *MockOrderProcessorEnqueueOrderCall) Return(arg0 bool) *MockOrderProcessorEnqueueOrderCall {
-	c.Call = c.Call.Return(arg0)
+func (c *MockOrderProcessorNewOrderArrivedCall) Return() *MockOrderProcessorNewOrderArrivedCall {
+	c.Call = c.Call.Return()
 	return c
 }
 
 // Do rewrite *gomock.Call.Do
-func (c *MockOrderProcessorEnqueueOrderCall) Do(f func(domain.UserID, domain.OrderID) bool) *MockOrderProcessorEnqueueOrderCall {
+func (c *MockOrderProcessorNewOrderArrivedCall) Do(f func(domain.UserID, domain.OrderID)) *MockOrderProcessorNewOrderArrivedCall {
 	c.Call = c.Call.Do(f)
 	return c
 }
 
 // DoAndReturn rewrite *gomock.Call.DoAndReturn
-func (c *MockOrderProcessorEnqueueOrderCall) DoAndReturn(f func(domain.UserID, domain.OrderID) bool) *MockOrderProcessorEnqueueOrderCall {
+func (c *MockOrderProcessorNewOrderArrivedCall) DoAndReturn(f func(domain.UserID, domain.OrderID)) *MockOrderProcessorNewOrderArrivedCall {
 	c.Call = c.Call.DoAndReturn(f)
 	return c
 }

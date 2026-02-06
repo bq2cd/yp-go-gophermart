@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/avast/retry-go/v5"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
 	"github.com/bq2cd/yp-go-gophermart/pkg/option"
 )
@@ -19,13 +18,12 @@ const (
 
 // OrderProcessor implements [service.OrderProcessor].
 type OrderProcessor struct {
-	wg                     sync.WaitGroup
-	runCh                  chan struct{}
-	callbackCh             <-chan orderEventResult
-	config                 *orderProcessorConfig
-	state                  *orderProcessorState
-	workerPool             *orderEventWorkerPool
-	getProcessableOrdersFn func(context.Context) (map[domain.UserID][]domain.OrderID, error)
+	wg         sync.WaitGroup
+	runCh      chan struct{}
+	callbackCh <-chan orderEventResult
+	config     *orderProcessorConfig
+	state      *orderProcessorState
+	workerPool *orderEventWorkerPool
 }
 
 // NewOrderProcessor creates an instance of [OrderProcessor].
@@ -44,13 +42,12 @@ func NewOrderProcessor(
 	workerPool := newOrderEventWorkerPool(orderRepository, accrualClient)
 
 	processor := &OrderProcessor{
-		wg:                     sync.WaitGroup{},
-		runCh:                  make(chan struct{}, 1),
-		callbackCh:             nil,
-		config:                 config,
-		state:                  state,
-		workerPool:             workerPool,
-		getProcessableOrdersFn: orderRepository.GetProcessableOrdersPerUser,
+		wg:         sync.WaitGroup{},
+		runCh:      make(chan struct{}, 1),
+		callbackCh: nil,
+		config:     config,
+		state:      state,
+		workerPool: workerPool,
 	}
 	for _, opt := range options {
 		opt(processor)
@@ -89,7 +86,7 @@ func WithOrderProcessorWorkerPoolSize(size uint) option.Option[OrderProcessor] {
 // These values will be the same for all types of events, although
 // concrete retry strategy (fixed, backoff, random) will be decided
 // internally based on event processing results.
-func WithOrderProcessorDelayConfig(config retry.DelayContext) option.Option[OrderProcessor] {
+func WithOrderProcessorDelayConfig(config OrderEventDelayConfig) option.Option[OrderProcessor] {
 	return func(p *OrderProcessor) {
 		p.config.DelayConfig = config
 	}
@@ -108,11 +105,9 @@ func WithOrderProcessorEnableOrderPreloadingOnStart(enable bool) option.Option[O
 	}
 }
 
-// EnqueueOrder puts given order ID into in-memory queue for further processing.
-func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.OrderID) bool {
-	event := p.newEvent(userID, orderID)
-
-	return p.state.EnqueueEvent(event)
+// NewOrderArrived notifies main processing loop about new order.
+func (p *OrderProcessor) NewOrderArrived(_ domain.UserID, _ domain.OrderID) {
+	p.state.TriggerQueueProcessing()
 }
 
 // Run launches an infinite loop which consumes [OrderEvent] events from
@@ -121,32 +116,29 @@ func (p *OrderProcessor) EnqueueOrder(userID domain.UserID, orderID domain.Order
 func (p *OrderProcessor) Run(ctx context.Context) {
 	p.runCh <- struct{}{}
 
-	p.state.SetIsClosed(false)
-
 	p.startEnqueueingProcessableOrders(ctx)
 	p.startWorkers(ctx)
 
 	p.mainLoop(ctx)
-
-	p.state.SetIsClosed(true)
 
 	p.shutdown(ctx)
 
 	<-p.runCh
 }
 
-// IsClosed returns [true] when [OrderProcessor] has started
-// a shutdown process and has stopped accepting new orders.
-// It is primarily used in tests.
-func (p *OrderProcessor) IsClosed() bool {
-	return p.state.IsClosed()
-}
-
 // HasFinished returns [true] when [OrderProcessor] finishes
 // processing of all enqueued events after it has been shutdown.
 // It is primarily used in tests.
 func (p *OrderProcessor) HasFinished() bool {
-	return p.state.HasFinished()
+	hasStarted := p.state.HasStarted()
+	hasFinished := p.state.HasFinished()
+
+	slog.Debug("processor: has finished yet?",
+		slog.Bool("has_started", hasStarted),
+		slog.Bool("no_events_inflight", hasFinished),
+	)
+
+	return hasStarted && hasFinished
 }
 
 // EnableOrderPreloadingOnStart allows to change pre-configured behavior
@@ -158,45 +150,16 @@ func (p *OrderProcessor) EnableOrderPreloadingOnStart(enable bool) {
 	p.config.EnableOrderPreloadingOnStart = enable
 }
 
-func (p *OrderProcessor) newEvent(userID domain.UserID, orderID domain.OrderID) OrderEvent {
-	return OrderEvent{
-		userID:       userID,
-		orderID:      orderID,
-		processAfter: time.Now(),
-		retries:      0,
-		delayConfig:  p.config.DelayConfig,
-	}
-}
-
-func (p *OrderProcessor) startEnqueueingProcessableOrders(ctx context.Context) {
+func (p *OrderProcessor) startEnqueueingProcessableOrders(_ context.Context) {
 	if !p.config.EnableOrderPreloadingOnStart {
 		return
 	}
 
-	p.wg.Add(1)
-
-	go p.enqueueProcessableOrders(ctx)
-}
-
-func (p *OrderProcessor) enqueueProcessableOrders(ctx context.Context) {
-	defer p.wg.Done()
-
-	slog.DebugContext(ctx, "processor: preloading processable orders")
-
-	ordersPerUser, err := p.getProcessableOrdersFn(ctx)
-	if err != nil {
-		return
-	}
-
-	for userID, orders := range ordersPerUser {
-		for _, orderID := range orders {
-			p.EnqueueOrder(userID, orderID)
-		}
-	}
+	p.state.TriggerQueueProcessing()
 }
 
 func (p *OrderProcessor) startWorkers(ctx context.Context) {
-	callbackCh := make(chan orderEventResult)
+	callbackCh := make(chan orderEventResult, 1)
 
 	p.callbackCh = callbackCh
 
@@ -211,39 +174,11 @@ func (p *OrderProcessor) startCallbackProcessing(ctx context.Context) {
 	go p.runCallbackProcessing(ctx)
 }
 
-func (p *OrderProcessor) runCallbackProcessing(ctx context.Context) {
-	defer p.wg.Done()
-
-	for result := range p.callbackCh {
-		p.processCallback(ctx, result)
-	}
-}
-
-func (p *OrderProcessor) processCallback(ctx context.Context, result orderEventResult) {
-	slog.DebugContext(ctx, "processor: callback",
-		slog.Any("event", result.OrderEvent),
-		slog.Any("error", result.err),
-	)
-
-	p.processEventResult(ctx, result)
-}
-
-func (p *OrderProcessor) processEventResult(ctx context.Context, result orderEventResult) {
-	defer p.state.DecrementEventsInFlight()
-
-	if hasContextExpired(ctx) {
-		return
-	}
-
-	event, retryable := result.GetRetryableEvent()
-	if !retryable {
-		return
-	}
-
-	p.state.EnqueueEvent(event)
-}
-
 func (p *OrderProcessor) mainLoop(ctx context.Context) {
+	slog.DebugContext(ctx, "processor: main loop started")
+
+	p.state.Start()
+
 loop:
 	for {
 		select {
@@ -251,15 +186,17 @@ loop:
 			break loop
 		case <-p.state.NotifyC():
 			p.processQueue(ctx)
+		case <-p.state.WakeupC():
+			p.processQueue(ctx)
 		}
 	}
 
-	slog.DebugContext(ctx, "processor: main loop completed")
+	slog.DebugContext(ctx, "processor: main loop finished")
 }
 
 func (p *OrderProcessor) processQueue(ctx context.Context) {
 	for !hasContextExpired(ctx) {
-		event, ok := p.state.NextEvent()
+		event, ok := p.state.NextEvent(ctx, p.config.DelayConfig)
 		if !ok {
 			break
 		}
@@ -269,11 +206,7 @@ func (p *OrderProcessor) processQueue(ctx context.Context) {
 }
 
 func (p *OrderProcessor) processEvent(ctx context.Context, event OrderEvent) {
-	if time.Now().After(event.processAfter) {
-		p.sendEventToWorkerPool(ctx, event)
-	} else {
-		p.sendEventBackToQueue(ctx, event)
-	}
+	p.sendEventToWorkerPool(ctx, event)
 }
 
 func (p *OrderProcessor) sendEventToWorkerPool(ctx context.Context, event OrderEvent) {
@@ -285,37 +218,36 @@ func (p *OrderProcessor) sendEventToWorkerPool(ctx context.Context, event OrderE
 	p.workerPool.TakeEvent(event)
 }
 
-func (p *OrderProcessor) sendEventBackToQueue(ctx context.Context, event OrderEvent) {
-	p.wg.Add(1)
-
-	go p.waitForEventToBecomeProcessable(ctx, event)
-}
-
-func (p *OrderProcessor) waitForEventToBecomeProcessable(ctx context.Context, event OrderEvent) {
+func (p *OrderProcessor) runCallbackProcessing(ctx context.Context) {
 	defer p.wg.Done()
 
-	defer p.state.DecrementEventsInFlight()
+	slog.DebugContext(ctx, "processor: callback processing started")
 
-	timer := time.NewTimer(time.Until(event.processAfter))
-
-	slog.DebugContext(ctx, "processor: event waiter started",
-		slog.Any("event", event),
-		slog.Any("ctx", ctx),
-	)
-
-	select {
-	case <-ctx.Done():
-		timer.Stop()
-	case <-timer.C:
-		if !hasContextExpired(ctx) {
-			p.state.EnqueueEvent(event)
-		}
+	for result := range p.callbackCh {
+		p.processCallback(ctx, result)
 	}
 
-	slog.DebugContext(ctx, "processor: event waiter finished",
-		slog.Any("event", event),
-		slog.Any("ctx", ctx),
+	slog.DebugContext(ctx, "processor: callback processing finished")
+}
+
+func (p *OrderProcessor) processCallback(ctx context.Context, result orderEventResult) {
+	slog.DebugContext(ctx, "processor: callback",
+		slog.Any("event", result.OrderEvent),
+		slog.Any("error", result.err),
 	)
+
+	defer p.state.DecrementEventsInFlight(result.OrderID)
+
+	if hasContextExpired(ctx) {
+		return
+	}
+
+	event, retryable := result.GetRetryableEvent()
+	if !retryable {
+		return
+	}
+
+	p.state.EnqueueEvent(ctx, event)
 }
 
 // shutdown processes any remaining events in the [OrderQueue] while respecting [shutdownTimeout].
@@ -324,16 +256,10 @@ func (p *OrderProcessor) shutdown(baseCtx context.Context) {
 	defer cancel()
 
 	slog.DebugContext(ctx, "processor: shutdown started",
-		slog.Int("queue_size", p.state.QueueSize()),
 		slog.Any("ctx", ctx),
 	)
 
-	p.waitForWorkersToFinish()
-
-	p.startWorkers(ctx)
-	p.drainQueue(ctx)
-
-	slog.DebugContext(ctx, "processor: shutdown queue drained")
+	p.state.Stop()
 
 	p.waitForWorkersToFinish()
 
@@ -343,24 +269,4 @@ func (p *OrderProcessor) shutdown(baseCtx context.Context) {
 func (p *OrderProcessor) waitForWorkersToFinish() {
 	p.workerPool.Wait()
 	p.wg.Wait()
-}
-
-func (p *OrderProcessor) drainQueue(ctx context.Context) {
-	for {
-		event, ok := p.state.NextEvent()
-		if !ok {
-			break
-		}
-
-		if hasContextExpired(ctx) {
-			p.processCallback(ctx, orderEventResult{
-				OrderEvent: event,
-				err:        ErrOrderEventDiscarded,
-			})
-
-			continue
-		}
-
-		p.processEvent(ctx, event)
-	}
 }

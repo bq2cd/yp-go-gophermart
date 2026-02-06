@@ -15,6 +15,7 @@ var (
 	_ service.BalanceRepository = (*sqldatabase.Storage)(nil)
 	_ service.OrderRepository   = (*sqldatabase.Storage)(nil)
 	_ workers.OrderRepository   = (*sqldatabase.Storage)(nil)
+	_ workers.OrderQueue        = (*sqldatabase.Storage)(nil)
 )
 
 /////////////////////////////////////////////////////////////////////////////////

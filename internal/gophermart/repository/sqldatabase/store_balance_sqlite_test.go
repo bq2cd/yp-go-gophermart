@@ -272,7 +272,7 @@ func ensureBalanceExists(storage *sqldatabase.Storage, user models.User, current
 	balance.Current = current
 	balance.Withdrawn = withdrawn
 
-	_, err = sqldatabase.Query[models.Balance](storage.Debug()).
+	_, err = sqldatabase.Query[models.Balance](storage).
 		Updates(GinkgoT().Context(), balance)
 	Expect(err).To(Succeed())
 }

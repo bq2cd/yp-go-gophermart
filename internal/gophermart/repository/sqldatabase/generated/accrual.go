@@ -7,9 +7,9 @@ import (
 )
 
 var Accrual = struct {
-	Amount  field.Number[float64]
 	OrderID field.Number[uint]
+	Amount  field.Number[float64]
 }{
-	Amount:  field.Number[float64]{}.WithColumn("amount"),
 	OrderID: field.Number[uint]{}.WithColumn("order_id"),
+	Amount:  field.Number[float64]{}.WithColumn("amount"),
 }

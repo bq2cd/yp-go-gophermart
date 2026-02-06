@@ -16,6 +16,7 @@ func (s *Storage) AutoMigrate() error {
 		models.Balance{},
 		models.Accrual{},
 		models.Withdrawal{},
+		models.ProcessableOrder{},
 	)
 	if err != nil {
 		return fmt.Errorf("cannot run migrations: %w", err)

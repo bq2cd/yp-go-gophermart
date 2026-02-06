@@ -74,11 +74,11 @@ func (w *orderEventWorker) processEvent(baseCtx context.Context, event OrderEven
 		return err
 	}
 
-	return w.processAccrualClientOrder(ctx, event.userID, accOrder)
+	return w.processAccrualClientOrder(ctx, event.UserID, accOrder)
 }
 
 func (w *orderEventWorker) shouldProcessEvent(ctx context.Context, event OrderEvent) (bool, error) {
-	status, err := w.orderRepo.GetOrderStatus(ctx, event.userID, event.orderID)
+	status, err := w.orderRepo.GetOrderStatus(ctx, event.UserID, event.OrderID)
 	if err != nil {
 		return false, fmt.Errorf("cannot get order status: %w", err)
 	}
@@ -102,8 +102,8 @@ func (w *orderEventWorker) shouldProcessOrderStatus(
 
 	w.logger.DebugContext(ctx, "worker: verify eligibility for processing",
 		slog.Group("order",
-			slog.Uint64("id", uint64(event.orderID)),
-			slog.String("user", string(event.userID)),
+			slog.Uint64("id", uint64(event.OrderID)),
+			slog.String("user", string(event.UserID)),
 			slog.Int("status", int(status)),
 		),
 		slog.Bool("is_eligible", isEligible),
@@ -125,7 +125,7 @@ func (w *orderEventWorker) makeAccrualClientRequest(ctx context.Context, event O
 		return accOrder, fmt.Errorf("cannot send request to accrual system: %w", ctx.Err())
 	}
 
-	accOrder, err = w.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.orderID))
+	accOrder, err = w.accrualClient.GetOrderStatus(ctx, accdomain.OrderID(event.OrderID))
 
 	switch {
 	case err == nil:

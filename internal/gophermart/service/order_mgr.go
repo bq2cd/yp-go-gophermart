@@ -39,10 +39,7 @@ func (m *OrderManager) CreateOrder(ctx context.Context, userID domain.UserID, or
 		}
 	}
 
-	accepted := m.orderProcessor.EnqueueOrder(userID, orderID)
-	if !accepted {
-		return ErrOrderProcessorShuttingDown
-	}
+	m.orderProcessor.NewOrderArrived(userID, orderID)
 
 	return nil
 }

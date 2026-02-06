@@ -59,8 +59,7 @@ var _ = Describe("OrderManager", func() {
 					Return(true, userID, nil)
 
 				orderProcessor.EXPECT().
-					EnqueueOrder(userID, orderID).
-					Return(true)
+					NewOrderArrived(userID, orderID)
 			})
 
 			It("should succeed", func() {
@@ -120,21 +119,6 @@ var _ = Describe("OrderManager", func() {
 			})
 			It("should return an error", func() {
 				Expect(err).To(MatchError(ContainSubstring("order is not worthy")))
-			})
-		})
-
-		When("order processor is shutting down", func() {
-			BeforeEach(func() {
-				orderRepo.EXPECT().
-					CreateOrder(testutil.MockCtx(), userID, orderID).
-					Return(true, userID, nil)
-
-				orderProcessor.EXPECT().
-					EnqueueOrder(userID, orderID).
-					Return(false)
-			})
-			It("should return an error", func() {
-				Expect(err).To(MatchError(service.ErrOrderProcessorShuttingDown))
 			})
 		})
 	})
