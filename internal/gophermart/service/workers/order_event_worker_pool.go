@@ -18,12 +18,16 @@ func newOrderEventWorkerPool(
 	orderRepository OrderRepository,
 	accrualClient AccrualClient,
 ) *orderEventWorkerPool {
+	var zeroTime time.Time
+
 	workerCtx := &orderEventWorkerContext{
 		orderRepo:       orderRepository,
 		accrualClient:   accrualClient,
 		perEventTimeout: orderProcessorDefaultPerEventTimeout,
 		incomingCh:      nil,
 		callbackCh:      nil,
+		mu:              sync.RWMutex{},
+		pausedUntil:     zeroTime,
 	}
 
 	return &orderEventWorkerPool{
@@ -52,7 +56,7 @@ func (p *orderEventWorkerPool) SetPoolSize(size uint) {
 // Start launches N workers in goroutines, where N corresponds
 // to a pre-configured pool size.
 func (p *orderEventWorkerPool) Start(ctx context.Context, callbackCh chan<- orderEventResult) {
-	workCh := make(chan OrderEvent)
+	workCh := make(chan OrderEvent, p.poolSize)
 
 	p.outgoingCh = workCh
 	p.workerCtx.incomingCh = workCh

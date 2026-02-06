@@ -2,6 +2,7 @@ package workers
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/avast/retry-go/v5"
@@ -11,11 +12,21 @@ import (
 // OrderEvent represent an internal event for the [OrderProcessor]
 // used during processing.
 type OrderEvent struct {
-	userID       domain.UserID
-	orderID      domain.OrderID
+	domain.ProcessableOrder
+
 	processAfter time.Time
 	retries      uint
-	delayConfig  retry.DelayContext
+	delayConfig  OrderEventDelayConfig
+}
+
+// LogValue implements [slog.LogValuer] interface to render [OrderEvent] in logs.
+func (ev OrderEvent) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("user_id", ev.UserID.String()),
+		slog.Uint64("order_id", uint64(ev.OrderID)),
+		slog.Time("process_after", ev.processAfter),
+		slog.Uint64("retries", uint64(ev.retries)),
+	)
 }
 
 type orderEventResult struct {
@@ -39,11 +50,10 @@ func (r *orderEventResult) getNextEvent() (OrderEvent, bool) {
 	}
 
 	next := OrderEvent{
-		userID:       r.userID,
-		orderID:      r.orderID,
-		processAfter: processAfter,
-		retries:      retries,
-		delayConfig:  r.delayConfig,
+		ProcessableOrder: r.ProcessableOrder,
+		processAfter:     processAfter,
+		retries:          retries,
+		delayConfig:      r.delayConfig,
 	}
 
 	return next, true
@@ -57,7 +67,7 @@ func (r *orderEventResult) getNextProcessingTime(retries uint) (time.Time, bool)
 		return zero, false
 	}
 
-	delay := delayFn(retries, r.err, r.delayConfig)
+	delay := delayFn(retries, r.err, &r.delayConfig)
 	maxDelay := r.delayConfig.MaxDelay()
 
 	if maxDelay > 0 && delay > maxDelay {
@@ -79,7 +89,7 @@ func (r *orderEventResult) getDelayFn(retries uint) (retry.DelayTypeFunc, bool) 
 		return nil, false
 	}
 
-	if retries < orderEventDelayMinRetriesUntilBackOff {
+	if retries < r.delayConfig.MinRetriesUntilBackOff() {
 		return retry.RandomDelay, true
 	}
 

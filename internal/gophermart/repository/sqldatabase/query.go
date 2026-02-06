@@ -10,3 +10,18 @@ import (
 func Query[T any](storage *Storage, opts ...clause.Expression) gorm.Interface[T] {
 	return gorm.G[T](storage.db, opts...)
 }
+
+func clauseLockForUpdate() clause.Locking {
+	//nolint:exhaustruct
+	return clause.Locking{
+		Strength: clause.LockingStrengthUpdate,
+	}
+}
+
+func clauseLockForUpdateSkipLocked() clause.Locking {
+	//nolint:exhaustruct
+	return clause.Locking{
+		Strength: clause.LockingStrengthUpdate,
+		Options:  clause.LockingOptionsSkipLocked,
+	}
+}

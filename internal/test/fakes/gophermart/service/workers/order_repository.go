@@ -1,11 +1,14 @@
-//nolint:revive,err113,wrapcheck,exhaustruct
+//nolint:revive,err113,wrapcheck,exhaustruct,exhaustive
 package fakes
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,6 +37,18 @@ type TestOrderMap map[domain.OrderID]TestOrder
 type TestOrderRepoData struct {
 	Balances TestBalanceMap
 	Orders   TestOrderMap
+}
+
+type TestProcessableOrder struct {
+	domain.ProcessableOrder
+
+	processAfter time.Time
+	retries      uint
+}
+
+type TestQueueData struct {
+	ProcessAfter time.Time
+	Retries      uint
 }
 
 func NewTestOrderRepoData() TestOrderRepoData {
@@ -80,6 +95,7 @@ type TestOrderRepoDelayMap map[domain.OrderID]TestOrderRepoDelay
 /////////////////////////////////////////////////////////////////////////////////
 
 var _ workers.OrderRepository = (*TestOrderRepository)(nil)
+var _ workers.OrderQueue = (*TestOrderRepository)(nil)
 
 type TestOrderRepository struct {
 	mu     sync.RWMutex
@@ -87,6 +103,7 @@ type TestOrderRepository struct {
 	data   TestOrderRepoData
 	errs   TestOrderRepoErrorMap
 	delays TestOrderRepoDelayMap
+	queue  map[domain.OrderID]TestProcessableOrder
 }
 
 func NewTestOrderRepository() *TestOrderRepository {
@@ -95,6 +112,7 @@ func NewTestOrderRepository() *TestOrderRepository {
 		data:   TestOrderRepoData{},
 		errs:   TestOrderRepoErrorMap{},
 		delays: TestOrderRepoDelayMap{},
+		queue:  map[domain.OrderID]TestProcessableOrder{},
 	}
 }
 
@@ -102,36 +120,121 @@ func (r *TestOrderRepository) Setup(data TestOrderRepoData, errs TestOrderRepoEr
 	r.data = data
 	r.errs = errs
 	r.delays = delays
+
+	r.populateQueue()
 }
 
 func (r *TestOrderRepository) GetData() *TestOrderRepoData {
 	return &r.data
 }
 
-func (r *TestOrderRepository) GetProcessableOrdersPerUser(
+func (r *TestOrderRepository) SetupQueue(
+	processAfterTimes map[domain.OrderID]time.Time,
+	currentRetries map[domain.OrderID]uint,
+) {
+	for orderID, cand := range r.queue {
+		if processAfter, ok := processAfterTimes[orderID]; ok {
+			cand.processAfter = processAfter
+		}
+
+		if retries, ok := currentRetries[orderID]; ok {
+			cand.retries = retries
+		}
+
+		r.queue[orderID] = cand
+	}
+}
+
+func (r *TestOrderRepository) GetQueueData() map[domain.OrderID]TestQueueData {
+	result := make(map[domain.OrderID]TestQueueData)
+
+	for orderID, cand := range r.queue {
+		result[orderID] = TestQueueData{
+			ProcessAfter: cand.processAfter,
+			Retries:      cand.retries,
+		}
+	}
+
+	return result
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// [workers.OrderQueue] API.
+/////////////////////////////////////////////////////////////////////////////////
+
+func (r *TestOrderRepository) GetNextProcessableOrder(
 	ctx context.Context,
-) (map[domain.UserID][]domain.OrderID, error) {
-	rtl := testutil.NewReturnLogger2[map[domain.UserID][]domain.OrderID, error](r.level)
+	excludeIDs []domain.OrderID,
+) (domain.ProcessableOrder, uint, error) {
+	rtl := testutil.NewReturnLogger3[domain.ProcessableOrder, uint, error](r.level)
+
+	var (
+		result  domain.ProcessableOrder
+		retries uint
+	)
 
 	if ctx.Err() != nil {
-		return rtl.Log(nil, ctx.Err())
+		return rtl.Log(result, retries, ctx.Err())
 	}
 
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	ordersPerUser := make(map[domain.UserID][]domain.OrderID)
-	for orderID, order := range r.data.Orders {
-		switch order.Status {
-		case domain.OrderStatusNew, domain.OrderStatusProcessing:
-			ordersPerUser[order.UserID] = append(ordersPerUser[order.UserID], orderID)
-		case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
-			// make linter happy
-		}
+	candidates := r.getProcessableOrders(excludeIDs)
+
+	if len(candidates) == 0 {
+		return rtl.Log(result, retries, errors.New("no processable orders"))
 	}
 
-	return rtl.Log(ordersPerUser, nil)
+	slices.SortStableFunc(candidates, func(a, b TestProcessableOrder) int {
+		return cmp.Or(
+			a.processAfter.Compare(b.processAfter),
+			cmp.Compare(a.OrderID, b.OrderID),
+		)
+	})
+
+	result = candidates[0].ProcessableOrder
+	retries = candidates[0].retries
+
+	return rtl.Log(result, retries, nil)
 }
+
+func (r *TestOrderRepository) PostponeOrderProcessing(
+	ctx context.Context,
+	order domain.ProcessableOrder,
+	processAfter time.Time,
+) error {
+	rtl := testutil.NewReturnLogger[error](r.level)
+
+	if ctx.Err() != nil {
+		return rtl.Log(ctx.Err())
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	switch r.data.Orders[order.OrderID].Status {
+	case domain.OrderStatusNew, domain.OrderStatusProcessing:
+	default:
+		return nil
+	}
+
+	cand, ok := r.queue[order.OrderID]
+	if !ok {
+		return nil
+	}
+
+	cand.processAfter = processAfter
+	cand.retries++
+
+	r.queue[order.OrderID] = cand
+
+	return nil
+}
+
+/////////////////////////////////////////////////////////////////////////////////
+// [workers.OrderRepository] API.
+/////////////////////////////////////////////////////////////////////////////////
 
 func (r *TestOrderRepository) GetOrderStatus(
 	ctx context.Context,
@@ -223,7 +326,6 @@ func (r *TestOrderRepository) MarkOrderProcessing(
 		return rtl.Log(err)
 	}
 
-	//nolint:exhaustive
 	switch order.Status {
 	case domain.OrderStatusInvalid, domain.OrderStatusProcessed:
 		return rtl.Log(
@@ -269,7 +371,6 @@ func (r *TestOrderRepository) MarkOrderProcessed(
 		return rtl.Log(err)
 	}
 
-	//nolint:exhaustive
 	switch order.Status {
 	case domain.OrderStatusInvalid:
 		return rtl.Log(fmt.Errorf("cannot mark invalid order (%v) as processed", order))
@@ -342,4 +443,53 @@ func (r *TestOrderRepository) incrementBalance(userID domain.UserID, amount floa
 	r.data.Balances[userID] = result
 
 	return nil
+}
+
+func (r *TestOrderRepository) getProcessableOrders(excludeIDs []domain.OrderID) []TestProcessableOrder {
+	now := time.Now()
+
+	candidates := []TestProcessableOrder{}
+	for orderID, order := range r.data.Orders {
+		switch order.Status {
+		case domain.OrderStatusNew, domain.OrderStatusProcessing:
+		default:
+			continue
+		}
+
+		if slices.Contains(excludeIDs, orderID) {
+			continue
+		}
+
+		cand, ok := r.queue[orderID]
+		if !ok {
+			continue
+		}
+
+		if cand.processAfter.After(now) {
+			continue
+		}
+
+		candidates = append(candidates, cand)
+	}
+
+	return candidates
+}
+
+func (r *TestOrderRepository) populateQueue() {
+	var zeroTime time.Time
+
+	r.queue = map[domain.OrderID]TestProcessableOrder{}
+	for orderID, order := range r.data.Orders {
+		switch order.Status {
+		case domain.OrderStatusNew, domain.OrderStatusProcessing:
+			r.queue[orderID] = TestProcessableOrder{
+				ProcessableOrder: domain.ProcessableOrder{
+					UserID:  order.UserID,
+					OrderID: orderID,
+				},
+				processAfter: zeroTime,
+				retries:      0,
+			}
+		}
+	}
 }

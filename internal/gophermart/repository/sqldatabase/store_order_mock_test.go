@@ -2,6 +2,7 @@ package sqldatabase_test
 
 import (
 	"database/sql/driver"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	. "github.com/onsi/ginkgo/v2"
@@ -59,11 +60,32 @@ var _ = Describe("StoreOrder", func() {
 				BeforeEach(func() {
 					mockQueryUserExists(mock)
 					mockQueryOrderNotFound(mock)
-					mock.ExpectBegin().WillReturnError(ErrMock)
+					mock.ExpectBegin()
+					mock.
+						ExpectExec(mockPatternInsertOrder).
+						WillReturnError(ErrMock)
 				})
 
 				It("should return an error", func() {
 					Expect(err).To(MatchError(ContainSubstring("cannot create order: mock error")))
+				})
+			})
+
+			When("database fails during creation of the processable order", func() {
+				BeforeEach(func() {
+					mockQueryUserExists(mock)
+					mockQueryOrderNotFound(mock)
+					mock.ExpectBegin()
+					mock.
+						ExpectExec(mockPatternInsertOrder).
+						WillReturnResult(driver.RowsAffected(1))
+					mock.
+						ExpectExec(mockPatternInsertProcessableOrder).
+						WillReturnError(ErrMock)
+				})
+
+				It("should return an error", func() {
+					Expect(err).To(MatchError(ContainSubstring("cannot create processable order: mock error")))
 				})
 			})
 		})
@@ -131,40 +153,6 @@ var _ = Describe("StoreOrder", func() {
 			})
 		})
 
-		Context("getting processable orders", func() {
-			var (
-				result map[domain.UserID][]domain.OrderID
-				err    error
-			)
-
-			JustBeforeEach(func() {
-				result, err = storage.GetProcessableOrdersPerUser(
-					GinkgoT().Context(),
-				)
-
-				Expect(result).To(BeEmpty())
-			})
-
-			When("database fails during search for orders", func() {
-				BeforeEach(func() {
-					mock.
-						ExpectQuery(mockPatternSelectOrdersByStatuses).
-						WillReturnRows(
-							sqlmock.NewRows([]string{"id", "status", "user_id"}).
-								AddRow(123, domain.OrderStatusNew.Int(), 1).
-								AddRow(456, domain.OrderStatusProcessing.Int(), 2),
-						)
-					mock.
-						ExpectQuery(mockPatternSelectUsersByIDs).
-						WillReturnError(ErrMock)
-				})
-
-				It("should return an error", func() {
-					Expect(err).To(MatchError(ContainSubstring("cannot search processable orders: mock error")))
-				})
-			})
-		})
-
 		Context("getting order status", func() {
 			var (
 				orderID uint
@@ -201,8 +189,6 @@ var _ = Describe("StoreOrder", func() {
 
 			BeforeEach(func() {
 				orderID = exampleOrderID
-
-				mock.ExpectBegin()
 			})
 
 			JustBeforeEach(func() {
@@ -224,6 +210,7 @@ var _ = Describe("StoreOrder", func() {
 				BeforeEach(func() {
 					mockQueryUserExists(mock)
 					mockQueryOrderExists(mock, exampleUserLogin, orderID)
+					mock.ExpectBegin()
 				})
 
 				When("database fails during setting order status", func() {
@@ -248,7 +235,7 @@ var _ = Describe("StoreOrder", func() {
 					When("database fails during search for existing accrual points", func() {
 						BeforeEach(func() {
 							mock.
-								ExpectQuery(mockPatternSelectAccrualByOrderID).
+								ExpectQuery(mockPatternSelectAccrualByOrderID + mockPatternForUpdate).
 								WillReturnError(ErrMock)
 						})
 
@@ -260,7 +247,7 @@ var _ = Describe("StoreOrder", func() {
 					When("database fails during updating accrual points", func() {
 						BeforeEach(func() {
 							mock.
-								ExpectQuery(mockPatternSelectAccrualByOrderID).
+								ExpectQuery(mockPatternSelectAccrualByOrderID + mockPatternForUpdate).
 								WillReturnRows(sqlmock.NewRows([]string{"order_id", "amount"}).
 									AddRow(orderID, 1.0),
 								)
@@ -281,7 +268,7 @@ var _ = Describe("StoreOrder", func() {
 							ExpectExec(mockPatternUpdateOrderStatus).
 							WillReturnResult(driver.RowsAffected(1))
 						mock.
-							ExpectQuery(mockPatternSelectAccrualByOrderID).
+							ExpectQuery(mockPatternSelectAccrualByOrderID + mockPatternForUpdate).
 							WillReturnRows(sqlmock.NewRows([]string{"order_id", "amount"}).
 								AddRow(orderID, 1.0),
 							)
@@ -293,7 +280,7 @@ var _ = Describe("StoreOrder", func() {
 					When("database fails during search for user's balance", func() {
 						BeforeEach(func() {
 							mock.
-								ExpectQuery(mockPatternSelectBalanceByUserID).
+								ExpectQuery(mockPatternSelectBalanceByUserID + mockPatternForUpdate).
 								WillReturnError(ErrMock)
 						})
 
@@ -305,7 +292,7 @@ var _ = Describe("StoreOrder", func() {
 					When("database fails during updating user's balance", func() {
 						BeforeEach(func() {
 							mock.
-								ExpectQuery(mockPatternSelectBalanceByUserID).
+								ExpectQuery(mockPatternSelectBalanceByUserID + mockPatternForUpdate).
 								WillReturnRows(sqlmock.NewRows([]string{"id", "current", "user_id"}).
 									AddRow(1, 2.0, 1),
 								)
@@ -316,6 +303,64 @@ var _ = Describe("StoreOrder", func() {
 
 						It("should return an error", func() {
 							Expect(err).To(MatchError(ContainSubstring("cannot update balance: mock error")))
+						})
+					})
+				})
+
+				When("database fails during removing processable order", func() {
+					BeforeEach(func() {
+						mock.
+							ExpectExec(mockPatternUpdateOrderStatus).
+							WillReturnResult(driver.RowsAffected(1))
+						mock.
+							ExpectQuery(mockPatternSelectAccrualByOrderID + mockPatternForUpdate).
+							WillReturnRows(sqlmock.NewRows([]string{"order_id", "amount"}).
+								AddRow(orderID, 1.0),
+							)
+						mock.
+							ExpectExec(mockPatternUpdateAccrualAmount).
+							WillReturnResult(driver.RowsAffected(1))
+						mock.
+							ExpectQuery(mockPatternSelectBalanceByUserID + mockPatternForUpdate).
+							WillReturnRows(sqlmock.NewRows([]string{"id", "current", "user_id"}).
+								AddRow(1, 2.0, 1),
+							)
+						mock.
+							ExpectExec(mockPatternUpdateBalance).
+							WillReturnResult(driver.RowsAffected(1))
+						mock.
+							ExpectQuery(mockPatternSelectBalanceByUserID).
+							WillReturnRows(sqlmock.NewRows([]string{"id", "current", "user_id"}).
+								AddRow(1, 3.0, 1),
+							)
+					})
+
+					When("database fails during search for a processable order", func() {
+						BeforeEach(func() {
+							mock.
+								ExpectQuery(mockPatternSelectProcessableOrderByID + mockPatternForUpdate).
+								WillReturnError(ErrMock)
+						})
+
+						It("should return an error", func() {
+							Expect(err).To(MatchError(ContainSubstring("cannot search processable orders: mock error")))
+						})
+					})
+
+					When("database fails during removing of a processable order", func() {
+						BeforeEach(func() {
+							mock.
+								ExpectQuery(mockPatternSelectProcessableOrderByID + mockPatternForUpdate).
+								WillReturnRows(sqlmock.NewRows([]string{"order_id", "process_after", "retries", "user_id"}).
+									AddRow(1, time.Now(), 5, 1),
+								)
+							mock.
+								ExpectExec(mockPatternDeleteProcessableOrder).
+								WillReturnError(ErrMock)
+						})
+
+						It("should return an error", func() {
+							Expect(err).To(MatchError(ContainSubstring("cannot remove processable order: mock error")))
 						})
 					})
 				})

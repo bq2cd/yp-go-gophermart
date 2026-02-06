@@ -30,10 +30,6 @@ func (s *Storage) WithdrawFunds(
 		return false, domain.ErrUserNotFound
 	}
 
-	if amount < 0 {
-		return false, ErrWithdrawalAmountMustBePositive
-	}
-
 	err = transactionWithdrawFunds(ctx, user, orderID, amount).Run(s)
 	if err != nil {
 		return false, fmt.Errorf("cannot withdraw funds: %w", err)
@@ -94,16 +90,7 @@ func (s *Storage) GetWithdrawalTransactions(
 		return nil, fmt.Errorf("cannot search withdrawals: %w", err)
 	}
 
-	transactions := make([]domain.WithdrawalTransaction, 0, len(withdrawals))
-	for _, withdrawal := range withdrawals {
-		transactions = append(transactions, domain.WithdrawalTransaction{
-			OrderID:     domain.OrderID(withdrawal.NextOrderID),
-			Amount:      withdrawal.Amount,
-			ProcessedAt: withdrawal.CreatedAt,
-		})
-	}
-
-	return transactions, nil
+	return makeDomainWithdrawalTransactions(withdrawals), nil
 }
 
 func (s *Storage) findBalance(ctx context.Context, userID domain.UserID) (models.Balance, error) {
@@ -154,12 +141,7 @@ func (s *Storage) maybeUpdateBalance(ctx context.Context, user models.User, diff
 }
 
 func (s *Storage) updateBalance(ctx context.Context, user models.User, diffCurrent, diffWithdrawn float64) error {
-	//nolint:exhaustruct
-	lockForUpdate := clause.Locking{
-		Strength: clause.LockingStrengthUpdate,
-	}
-
-	balance, err := s.getBalance(ctx, user, lockForUpdate)
+	balance, err := s.getBalance(ctx, user, clauseLockForUpdate())
 	if err != nil {
 		return err
 	}
@@ -206,20 +188,4 @@ func (s *Storage) addWithdrawalTransaction(
 	}
 
 	return nil
-}
-
-func transactionWithdrawFunds(
-	ctx context.Context,
-	user models.User,
-	orderID domain.OrderID,
-	amount float64,
-) Transaction {
-	return Transaction{fn: func(stx *Storage) error {
-		err := stx.maybeUpdateBalance(ctx, user, -1*amount, amount)
-		if err != nil {
-			return err
-		}
-
-		return stx.addWithdrawalTransaction(ctx, user, orderID, amount)
-	}}
 }

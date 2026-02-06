@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/accrual/repository/apiclient"
-	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/inmemory"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/repository/sqldatabase"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service"
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/service/workers"
@@ -49,10 +48,6 @@ func (b *bootstrapBuilder) Build() (BootstrapDeps, error) {
 
 //nolint:ireturn
 func (b *bootstrapBuilder) buildStorage() (Storage, error) {
-	if b.config.DatabaseURI == "" {
-		return inmemory.NewStorage(), nil
-	}
-
 	storage, err := sqldatabase.NewStorage(b.config.DatabaseURI)
 	if err != nil {
 		return nil, fmt.Errorf("cannot initialize SQL database: %w", err)

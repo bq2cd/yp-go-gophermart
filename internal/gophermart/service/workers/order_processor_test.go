@@ -2,6 +2,7 @@ package workers_test
 
 import (
 	"context"
+	"math"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,7 +23,6 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	var (
 		orderRepo             *fakes.TestOrderRepository
 		accrualClient         *fakes.TestAccrualClient
-		orderQueue            workers.OrderQueue
 		orderProcessorOptions []option.Option[workers.OrderProcessor]
 		orderProcessor        *workers.OrderProcessor
 	)
@@ -30,57 +30,16 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 	BeforeEach(func() {
 		orderRepo = fakes.NewTestOrderRepository()
 		accrualClient = fakes.NewTestAccrualClient()
-		orderQueue = workers.NewOrderQueue()
 		orderProcessorOptions = []option.Option[workers.OrderProcessor]{}
 	})
 
 	JustBeforeEach(func() {
 		orderProcessor = workers.NewOrderProcessor(
 			orderRepo,
-			orderQueue,
+			orderRepo,
 			accrualClient,
 			orderProcessorOptions...,
 		)
-	})
-
-	Describe("enqueuing orders", func() {
-		Context("single order", func() {
-			var (
-				userID                  domain.UserID
-				orderID                 domain.OrderID
-				accepted                bool
-				shutdownBeforeEnqueuing bool
-			)
-
-			BeforeEach(func() {
-				userID = domain.UserID("user1")
-				orderID = domain.OrderID(12334)
-			})
-
-			JustBeforeEach(func() {
-				if shutdownBeforeEnqueuing {
-					ensureOrderProcessorIsClosed(orderProcessor)
-				}
-
-				accepted = orderProcessor.EnqueueOrder(userID, orderID)
-			})
-
-			When("order processor is running", func() {
-				It("should be accepted", func() {
-					Expect(accepted).To(BeTrue())
-				})
-			})
-
-			When("order processor has been shutdown", func() {
-				BeforeEach(func() {
-					shutdownBeforeEnqueuing = true
-				})
-
-				It("should be rejected", func() {
-					Expect(accepted).To(BeFalse())
-				})
-			})
-		})
 	})
 
 	Describe("processing orders", func() {
@@ -98,15 +57,14 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 						workers.WithOrderEventInitialDelay(10*time.Millisecond),
 						workers.WithOrderEventMaxJitter(5*time.Millisecond),
 						workers.WithOrderEventMaxDelay(1*time.Second),
+						workers.WithOrderEventMinRetriesUntilBackOff(10),
 					),
 				),
-				workers.WithOrderProcessorEnableOrderPreloadingOnStart(false),
 			)
 		})
 
 		JustBeforeEach(func() {
 			testCtx.SetupMocks(orderRepo, accrualClient)
-			testCtx.EnqueueOrders(orderProcessor)
 
 			ctx, cancel := context.WithTimeout(GinkgoT().Context(), runTimeout)
 			defer cancel()
@@ -118,7 +76,6 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 		Context("all orders are new", func() {
 			BeforeEach(func() {
-				testCtx.InputOrders = []domain.OrderID{10_123, 10_789, 20_123, 20_456, 20_789, 30_456, 40_123, 99_999}
 				testCtx.OrderRepoData = fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
 						"user1": 0.0,
@@ -179,17 +136,6 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 		Context("picking up previous state", func() {
 			BeforeEach(func() {
-				testCtx.InputOrders = []domain.OrderID{
-					99_998,
-					10_123,
-					10_456,
-					20_123,
-					20_456,
-					30_123,
-					40_123,
-					50_789,
-					99_999,
-				}
 				testCtx.OrderRepoData = fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
@@ -254,10 +200,6 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					workers.WithOrderProcessorShutdownTimeout(50*time.Millisecond),
 				)
 
-				testCtx.InputOrders = []domain.OrderID{
-					10_123,
-					20_456,
-				}
 				testCtx.OrderRepoData = fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
 						"user1": 5.0,
@@ -338,14 +280,6 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 							workers.WithOrderProcessorWorkerPoolSize(uint(_numWorkers)),
 						)
 
-						testCtx.InputOrders = []domain.OrderID{
-							10_123,
-							10_456,
-							10_789,
-							20_123,
-							20_456,
-							20_789,
-						}
 						testCtx.OrderRepoData = fakes.TestOrderRepoData{
 							Balances: fakes.TestBalanceMap{
 								"user1": 5.0,
@@ -402,23 +336,82 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				Entry(nil, 5),
 				Entry(nil, 6),
 			)
+		})
 
+		Context("accrual server constantly overloaded", func() {
+			DescribeTableSubtree("with number of workers",
+				func(_numWorkers int) {
+					BeforeEach(func() {
+						runTimeout = 500 * time.Millisecond
+
+						orderProcessorOptions = append(orderProcessorOptions,
+							workers.WithOrderProcessorPerEventTimeout(600*time.Millisecond),
+							workers.WithOrderProcessorShutdownTimeout(100*time.Millisecond),
+							workers.WithOrderProcessorWorkerPoolSize(uint(_numWorkers)),
+						)
+
+						testCtx.OrderRepoData = fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						}
+						testCtx.AccrualData = fakes.TestAccrualData{
+							10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 8.21},
+							10_456: {Status: accdomain.OrderStatusProcessed, Accrual: 4.44},
+							10_789: {Status: accdomain.OrderStatusRegistered},
+							20_123: {Status: accdomain.OrderStatusRegistered},
+							20_456: {Status: accdomain.OrderStatusRegistered},
+							20_789: {Status: accdomain.OrderStatusRegistered},
+						}
+
+						accrualError := fakes.NewTestErrorCustom(
+							&accdomain.RateLimitExceededError{RetryAfter: 120 * time.Second},
+							math.MaxUint,
+						)
+
+						testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
+							10_123: {GetOrderStatus: accrualError},
+							10_456: {GetOrderStatus: accrualError},
+							10_789: {GetOrderStatus: accrualError},
+							20_123: {GetOrderStatus: accrualError},
+							20_456: {GetOrderStatus: accrualError},
+							20_789: {GetOrderStatus: accrualError},
+						}
+					})
+
+					It("should not process any of the orders", func() {
+						orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 5.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_456: {UserID: "user1", Status: domain.OrderStatusNew},
+								10_789: {UserID: "user1", Status: domain.OrderStatusNew},
+								20_123: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+								20_789: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						})
+
+						Expect(accrualClient.NumCalls().GetOrderStatus).To(BeNumerically("<=", _numWorkers))
+					})
+				},
+				Entry(nil, 1),
+				Entry(nil, 2),
+				Entry(nil, 3),
+				Entry(nil, 4),
+				Entry(nil, 5),
+				Entry(nil, 6),
+			)
 		})
 	})
 })
-
-/////////////////////////////////////////////////////////////////////////////////
-
-func ensureOrderProcessorIsClosed(
-	orderProcessor *workers.OrderProcessor,
-) {
-	GinkgoHelper()
-
-	ctx, cancel := context.WithCancel(GinkgoT().Context())
-
-	go orderProcessor.Run(ctx)
-
-	cancel()
-
-	Eventually(orderProcessor.IsClosed).To(BeTrue())
-}

@@ -7,7 +7,7 @@ var (
 	// that is not supported.
 	ErrUnsupportedDatabaseDriver = errors.New("unsupported database driver")
 
-	// ErrWithdrawalAmountMustBePositive is returned by [Storage.WithdrawFunds] method when requested withdrawal
-	// amount is below zero.
-	ErrWithdrawalAmountMustBePositive = errors.New("withdrawal amount must be positive")
+	// ErrNoProcessableOrders is returned by [Storage.GetNextProcessableOrder] when there are no orders
+	// available for processing.
+	ErrNoProcessableOrders = errors.New("no processable orders")
 )

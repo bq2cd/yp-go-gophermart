@@ -75,7 +75,7 @@ var _ = Describe("StoreUser", func() {
 						ExpectQuery(mockPatternInsertUser).
 						WillReturnRows(sqlmock.NewRows([]string{}))
 					mock.
-						ExpectQuery(mockPatternInsertBalance).
+						ExpectExec(mockPatternInsertBalance).
 						WillReturnError(ErrMock)
 				})
 

@@ -12,4 +12,5 @@ type Storage interface {
 	service.BalanceRepository
 	service.OrderRepository
 	workers.OrderRepository
+	workers.OrderQueue
 }

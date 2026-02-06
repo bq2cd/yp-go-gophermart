@@ -12,6 +12,7 @@ import (
 
 const (
 	cliArgsDefaultAccrualSystemAddress = "127.9.9.9:9876"
+	cliArgsDefaultDatabaseURI          = "sqlite:/tmp/gophermart.db"
 )
 
 var _ = Describe("Cli Parse", func() {
@@ -45,12 +46,14 @@ var _ = Describe("Cli Parse", func() {
 
 		When("required CLI flags are present in env vars", func() {
 			BeforeEach(func() {
-				setEnvironmentVariable("ACCRUAL_SYSTEM_ADDRESS", "localhost:9999")
+				setEnvironmentVariable("ACCRUAL_SYSTEM_ADDRESS", cliArgsDefaultAccrualSystemAddress)
+				setEnvironmentVariable("DATABASE_URI", cliArgsDefaultDatabaseURI)
 			})
 
 			It("should succeed and have proper value parsed", func() {
 				Expect(err).To(Succeed())
-				Expect(appCLI.AccrualSystemAddress).To(Equal("localhost:9999"))
+				Expect(appCLI.AccrualSystemAddress).To(Equal(cliArgsDefaultAccrualSystemAddress))
+				Expect(appCLI.DatabaseURI).To(Equal(cliArgsDefaultDatabaseURI))
 			})
 		})
 	})
@@ -64,12 +67,16 @@ var _ = Describe("Cli Parse", func() {
 		emptyFlagDef := flagDef{}
 
 		BeforeEach(func() {
-			cliArgs = []string{"-r", cliArgsDefaultAccrualSystemAddress}
+			cliArgs = []string{
+				"-r", cliArgsDefaultAccrualSystemAddress,
+				"-d", cliArgsDefaultDatabaseURI,
+			}
 		})
 
 		JustAfterEach(func() {
 			if err != nil {
 				Expect(appCLI.AccrualSystemAddress).To(Equal(cliArgsDefaultAccrualSystemAddress))
+				Expect(appCLI.DatabaseURI).To(Equal(cliArgsDefaultDatabaseURI))
 			}
 		})
 
@@ -114,25 +121,6 @@ var _ = Describe("Cli Parse", func() {
 				flagDef{"-a", "127.2.2.2:1234"},
 				flagDef{"RUN_ADDRESS", "127.5.5.5:4567"},
 				func() string { return appCLI.ListenAddress },
-			),
-			// -d flag
-			Entry(
-				"-d provided in cmdline",
-				flagDef{"-d", "postgres://localhost:2345"},
-				flagDef{},
-				func() string { return appCLI.DatabaseURI },
-			),
-			Entry(
-				"-d provided in env",
-				flagDef{},
-				flagDef{"DATABASE_URI", "postgres://127.4.4.4:9876"},
-				func() string { return appCLI.DatabaseURI },
-			),
-			Entry(
-				"-d provided both in cmdline and env",
-				flagDef{"-d", "postgres://localhost-6789:2345"},
-				flagDef{"DATABASE_URI", "postgres://127.33.33.33:9876"},
-				func() string { return appCLI.DatabaseURI },
 			),
 		)
 	})

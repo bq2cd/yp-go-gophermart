@@ -34,6 +34,7 @@ var _ = Describe("AccrualClient", func() {
 			err                  error
 			actionFn             func(context.Context)
 			actionCtx            context.Context
+			expectedNumCalls     uint
 		)
 
 		BeforeEach(func() {
@@ -43,6 +44,7 @@ var _ = Describe("AccrualClient", func() {
 			actionCtx = GinkgoT().Context() //nolint:fatcontext
 			orderID = accdomain.OrderID(1234)
 			expectedOrder = accdomain.Order{}
+			expectedNumCalls = 1
 		})
 
 		JustBeforeEach(func() {
@@ -53,6 +55,7 @@ var _ = Describe("AccrualClient", func() {
 
 		JustAfterEach(func() {
 			Expect(order).To(Equal(expectedOrder))
+			Expect(accrualClient.NumCalls().GetOrderStatus).To(Equal(expectedNumCalls))
 		})
 
 		When("order does not exist", func() {
@@ -99,6 +102,7 @@ var _ = Describe("AccrualClient", func() {
 					testErrors.Merge(fakes.TestAccrualErrorMap{
 						domain.OrderID(orderID): {GetOrderStatus: fakes.NewTestError(2)},
 					})
+					expectedNumCalls = 3
 				})
 
 				It("should return configured errors", func() {

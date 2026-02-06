@@ -104,27 +104,54 @@ var _ = Describe("Cli Run", func() {
 				verifyFn = func() {}
 			})
 
-			Context("accrual system address missing or invalid", func() {
+			Context("required parameters are missing or invalid", func() {
 				When("accrual system address is missing", func() {
+					BeforeEach(func() {
+						appCLI.DatabaseURI = cliArgsDefaultDatabaseURI
+					})
+
 					It("should fail to start", func() {
-						Expect(err).To(MatchError(ContainSubstring("accrual system address cannot be empty")))
+						Expect(err).To(MatchError(app.ErrEmptyAccrualSystemAddress))
 					})
 				})
 
 				When("accrual system address is malformed", func() {
 					BeforeEach(func() {
-						appCLI.AccrualSystemAddress = ":::"
+						appCLI.AccrualSystemAddress = "://:"
+						appCLI.DatabaseURI = cliArgsDefaultDatabaseURI
 					})
 
 					It("should fail to start", func() {
 						Expect(err).To(MatchError(ContainSubstring("cannot parse accrual system address as url")))
 					})
 				})
+
+				When("database URI is missing", func() {
+					BeforeEach(func() {
+						appCLI.AccrualSystemAddress = cliArgsDefaultAccrualSystemAddress
+					})
+
+					It("should fail to start", func() {
+						Expect(err).To(MatchError(app.ErrEmptyDatabaseURI))
+					})
+				})
+
+				When("database URI is malformed", func() {
+					BeforeEach(func() {
+						appCLI.AccrualSystemAddress = cliArgsDefaultAccrualSystemAddress
+						appCLI.DatabaseURI = ":::"
+					})
+
+					It("should fail to start", func() {
+						Expect(err).To(MatchError(ContainSubstring("cannot parse database URI as url")))
+					})
+				})
 			})
 
-			Context("accrual system address is present and valid", func() {
+			Context("required parameters are present and valid", func() {
 				BeforeEach(func() {
-					appCLI.AccrualSystemAddress = "localhost:123"
+					appCLI.AccrualSystemAddress = cliArgsDefaultAccrualSystemAddress
+					appCLI.DatabaseURI = cliArgsDefaultDatabaseURI
 				})
 
 				When("listen address is empty", func() {
@@ -161,17 +188,9 @@ var _ = Describe("Cli Run", func() {
 
 		Context("success scenarios", func() {
 			BeforeEach(func() {
-				appCLI.AccrualSystemAddress = "localhost:9999"
+				appCLI.AccrualSystemAddress = cliArgsDefaultAccrualSystemAddress
 
 				verifyFn = expectHTTPRequestsToSucceed
-			})
-
-			Context("in-memory storage backend", func() {
-				When("all options are valid", func() {
-					It("should succeed and respond to HTTP requests", func() {
-						Expect(err).To(Succeed())
-					})
-				})
 			})
 
 			Context("sqlite storage backend", func() {
@@ -212,5 +231,4 @@ var _ = Describe("Cli Run", func() {
 
 		})
 	})
-
 })
