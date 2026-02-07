@@ -194,7 +194,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 		Context("hitting delays during processing", func() {
 			BeforeEach(func() {
-				runTimeout = 80 * time.Millisecond
+				runTimeout = 100 * time.Millisecond
 
 				orderProcessorOptions = append(orderProcessorOptions,
 					workers.WithOrderProcessorShutdownTimeout(50*time.Millisecond),
@@ -216,7 +216,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				}
 				testCtx.OrderRepoDelays = fakes.TestOrderRepoDelayMap{
 					10_123: {
-						GetOrderStatus:     20 * time.Millisecond,
+						GetOrderStatus:     30 * time.Millisecond,
 						MarkOrderProcessed: 30 * time.Millisecond,
 					},
 				}
@@ -412,6 +412,50 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 				Entry(nil, 5),
 				Entry(nil, 6),
 			)
+		})
+
+		Context("order processor should sleep until next queue processing is triggered", func() {
+			BeforeEach(func() {
+				runTimeout = 500 * time.Millisecond
+				orderProcessorOptions = append(orderProcessorOptions,
+					workers.WithOrderProcessorDelayConfig(
+						workers.NewOrderEventDelayConfig(
+							workers.WithOrderEventInitialDelay(10*time.Minute),
+							workers.WithOrderEventMaxJitter(5*time.Minute),
+							workers.WithOrderEventMaxDelay(1*time.Hour),
+							workers.WithOrderEventMinRetriesUntilBackOff(0),
+						),
+					),
+				)
+
+				testCtx.OrderRepoData = fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
+						"user1": 0.0,
+					},
+					Orders: fakes.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+					},
+				}
+				testCtx.AccrualData = fakes.TestAccrualData{
+					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 7.77},
+				}
+				testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
+					10_123: {GetOrderStatus: fakes.NewTestError(3)},
+				}
+			})
+
+			It("should process no orders", func() {
+				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+					Balances: fakes.TestBalanceMap{
+						"user1": 0.0,
+					},
+					Orders: fakes.TestOrderMap{
+						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+					},
+				})
+
+				Expect(orderProcessor.NumWakeups()).To(BeNumerically("==", 1))
+			})
 		})
 	})
 })

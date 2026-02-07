@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bq2cd/yp-go-gophermart/internal/gophermart/domain"
@@ -21,6 +22,7 @@ type OrderProcessor struct {
 	wg         sync.WaitGroup
 	runCh      chan struct{}
 	callbackCh <-chan orderEventResult
+	numWakeups atomic.Uint64
 	config     *orderProcessorConfig
 	state      *orderProcessorState
 	workerPool *orderEventWorkerPool
@@ -45,6 +47,7 @@ func NewOrderProcessor(
 		wg:         sync.WaitGroup{},
 		runCh:      make(chan struct{}, 1),
 		callbackCh: nil,
+		numWakeups: atomic.Uint64{},
 		config:     config,
 		state:      state,
 		workerPool: workerPool,
@@ -150,6 +153,14 @@ func (p *OrderProcessor) EnableOrderPreloadingOnStart(enable bool) {
 	p.config.EnableOrderPreloadingOnStart = enable
 }
 
+// NumWakeups returns a number of times when [OrderProcessor] got woken up to
+// process the queue. This can happen when it got notified about a new order
+// or when a pending order approached its processing time.
+// This method is primarily exposed for testing purposes.
+func (p *OrderProcessor) NumWakeups() uint64 {
+	return p.numWakeups.Load()
+}
+
 func (p *OrderProcessor) startEnqueueingProcessableOrders(_ context.Context) {
 	if !p.config.EnableOrderPreloadingOnStart {
 		return
@@ -177,6 +188,7 @@ func (p *OrderProcessor) startCallbackProcessing(ctx context.Context) {
 func (p *OrderProcessor) mainLoop(ctx context.Context) {
 	slog.DebugContext(ctx, "processor: main loop started")
 
+	p.numWakeups.Store(0)
 	p.state.Start()
 
 loop:
@@ -185,8 +197,10 @@ loop:
 		case <-ctx.Done():
 			break loop
 		case <-p.state.NotifyC():
+			slog.DebugContext(ctx, "processor: queue processing triggered by notification")
 			p.processQueue(ctx)
 		case <-p.state.WakeupC():
+			slog.DebugContext(ctx, "processor: queue processing triggered by wakeup timer")
 			p.processQueue(ctx)
 		}
 	}
@@ -195,6 +209,8 @@ loop:
 }
 
 func (p *OrderProcessor) processQueue(ctx context.Context) {
+	p.numWakeups.Add(1)
+
 	for !hasContextExpired(ctx) {
 		event, ok := p.state.NextEvent(ctx, p.config.DelayConfig)
 		if !ok {
