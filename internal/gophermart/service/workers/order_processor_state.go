@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -15,10 +16,12 @@ type orderProcessorState struct {
 	mu             sync.RWMutex
 	queue          OrderQueue
 	ordersInFlight map[domain.OrderID]struct{}
+	pendingOrders  map[domain.OrderID]struct{}
 	notifyCh       chan struct{}
 	startedCh      chan struct{}
 	nextWakeupTime time.Time
-	pendingOrders  map[domain.OrderID]struct{}
+	wakeupTimer    *time.Timer
+	isRunning      bool
 }
 
 func newOrderProcessorState(queue OrderQueue) *orderProcessorState {
@@ -26,10 +29,12 @@ func newOrderProcessorState(queue OrderQueue) *orderProcessorState {
 		mu:             sync.RWMutex{},
 		queue:          queue,
 		ordersInFlight: make(map[domain.OrderID]struct{}),
+		pendingOrders:  make(map[domain.OrderID]struct{}),
 		notifyCh:       make(chan struct{}, 1),
 		startedCh:      nil,
 		nextWakeupTime: time.Time{},
-		pendingOrders:  make(map[domain.OrderID]struct{}),
+		wakeupTimer:    time.NewTimer(math.MaxInt64),
+		isRunning:      false,
 	}
 }
 
@@ -38,9 +43,14 @@ func newOrderProcessorState(queue OrderQueue) *orderProcessorState {
 // Errors from [OrderQueue] are ignored because the same order will be picked up
 // again by the [NextEvent] call if this method fails.
 func (s *orderProcessorState) EnqueueEvent(ctx context.Context, event OrderEvent) {
-	slog.Debug("processor: enqueue",
+	slog.DebugContext(ctx, "processor: enqueue",
 		slog.Any("event", event),
+		slog.Any("ctx", ctx),
 	)
+
+	if hasContextExpired(ctx) {
+		return
+	}
 
 	err := s.queue.PostponeOrderProcessing(ctx, event.ProcessableOrder, event.processAfter)
 	if err != nil {
@@ -129,7 +139,7 @@ func (s *orderProcessorState) WakeupC() <-chan time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return time.After(time.Until(s.nextWakeupTime))
+	return s.wakeupTimer.C
 }
 
 // Start creates and closes a special channel to indicate that
@@ -138,11 +148,13 @@ func (s *orderProcessorState) Start() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	slog.Debug("processor: activating internal state")
+
+	s.isRunning = true
+
 	s.startedCh = make(chan struct{})
 
 	close(s.startedCh)
-
-	slog.Debug("processor: activating internal state")
 }
 
 // HasStarted returns [true] when queue processing is started
@@ -171,6 +183,10 @@ func (s *orderProcessorState) Stop() {
 	)
 
 	clear(s.pendingOrders)
+
+	s.wakeupTimer.Stop()
+
+	s.isRunning = false
 }
 
 // HasFinished returns [true] when [OrderProcessor] finishes
@@ -183,6 +199,11 @@ func (s *orderProcessorState) HasFinished() bool {
 	hasProcessingFinished := len(s.ordersInFlight) == 0
 	hasNoPendingEvents := len(s.pendingOrders) == 0
 
+	slog.Debug("processor: state has finished yet?",
+		slog.Any("inflight_orders", s.ordersInFlight),
+		slog.Any("pending_orders", s.pendingOrders),
+	)
+
 	return hasProcessingFinished && hasNoPendingEvents
 }
 
@@ -190,7 +211,16 @@ func (s *orderProcessorState) addPendingOrder(orderID domain.OrderID, processAft
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if !s.isRunning {
+		return
+	}
+
 	s.pendingOrders[orderID] = struct{}{}
+
+	slog.Debug("processor: added pending order",
+		slog.Uint64("order_id", uint64(orderID)),
+		slog.Any("new_pending_orders", s.pendingOrders),
+	)
 
 	if s.nextWakeupTime.After(processAfter) {
 		return
@@ -198,10 +228,11 @@ func (s *orderProcessorState) addPendingOrder(orderID domain.OrderID, processAft
 
 	s.nextWakeupTime = processAfter
 
+	s.wakeupTimer.Reset(time.Until(s.nextWakeupTime))
+
 	slog.Debug("processor: updated next wakeup time",
 		slog.Time("next_wakeup", s.nextWakeupTime),
 		slog.Uint64("order_id", uint64(orderID)),
-		slog.Any("pending_orders", s.pendingOrders),
 	)
 }
 
