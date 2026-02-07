@@ -197,19 +197,22 @@ loop:
 		case <-ctx.Done():
 			break loop
 		case <-p.state.NotifyC():
-			slog.DebugContext(ctx, "processor: queue processing triggered by notification")
-			p.processQueue(ctx)
+			p.processQueue(ctx, "notification")
 		case <-p.state.WakeupC():
-			slog.DebugContext(ctx, "processor: queue processing triggered by wakeup timer")
-			p.processQueue(ctx)
+			p.processQueue(ctx, "wakeup timer")
 		}
 	}
 
 	slog.DebugContext(ctx, "processor: main loop finished")
 }
 
-func (p *OrderProcessor) processQueue(ctx context.Context) {
+func (p *OrderProcessor) processQueue(ctx context.Context, cause string) {
 	p.numWakeups.Add(1)
+
+	slog.DebugContext(ctx, "processor: queue processing triggered",
+		slog.String("cause", cause),
+		slog.Uint64("num_wakeups", p.numWakeups.Load()),
+	)
 
 	for !hasContextExpired(ctx) {
 		event, ok := p.state.NextEvent(ctx, p.config.DelayConfig)
