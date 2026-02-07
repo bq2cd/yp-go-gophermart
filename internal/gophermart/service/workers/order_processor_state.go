@@ -240,6 +240,10 @@ func (s *orderProcessorState) removePendingOrder(orderID domain.OrderID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if _, ok := s.pendingOrders[orderID]; !ok {
+		return
+	}
+
 	delete(s.pendingOrders, orderID)
 
 	slog.Debug("processor: removed pending order",

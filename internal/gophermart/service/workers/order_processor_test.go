@@ -2,7 +2,9 @@ package workers_test
 
 import (
 	"context"
+	"log/slog"
 	"math"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -25,9 +27,13 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		accrualClient         *fakes.TestAccrualClient
 		orderProcessorOptions []option.Option[workers.OrderProcessor]
 		orderProcessor        *workers.OrderProcessor
+		mu                    sync.Mutex
 	)
 
 	BeforeEach(func() {
+		mu.Lock()
+		defer mu.Unlock()
+
 		orderRepo = fakes.NewTestOrderRepository()
 		accrualClient = fakes.NewTestAccrualClient()
 		orderProcessorOptions = []option.Option[workers.OrderProcessor]{}
@@ -44,12 +50,13 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 
 	Describe("processing orders", func() {
 		var (
-			testCtx    *TestOrderProcessorContext
-			runTimeout time.Duration
+			testCtx               *TestOrderProcessorContext
+			runLeeway, runTimeout time.Duration
 		)
 
 		BeforeEach(func() {
 			testCtx = NewTestOrderProcessorContext()
+			runLeeway = 0
 			runTimeout = 100 * time.Millisecond
 			orderProcessorOptions = append(orderProcessorOptions,
 				workers.WithOrderProcessorDelayConfig(
@@ -70,6 +77,8 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 			defer cancel()
 
 			go orderProcessor.Run(ctx)
+
+			time.Sleep(runLeeway)
 
 			Eventually(orderProcessor.HasFinished).To(BeTrue(), "order processor should have finished by now")
 		})
@@ -417,16 +426,7 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 		Context("order processor should sleep until next queue processing is triggered", func() {
 			BeforeEach(func() {
 				runTimeout = 500 * time.Millisecond
-				orderProcessorOptions = append(orderProcessorOptions,
-					workers.WithOrderProcessorDelayConfig(
-						workers.NewOrderEventDelayConfig(
-							workers.WithOrderEventInitialDelay(10*time.Minute),
-							workers.WithOrderEventMaxJitter(5*time.Minute),
-							workers.WithOrderEventMaxDelay(1*time.Hour),
-							workers.WithOrderEventMinRetriesUntilBackOff(0),
-						),
-					),
-				)
+				runLeeway = 600 * time.Millisecond
 
 				testCtx.OrderRepoData = fakes.TestOrderRepoData{
 					Balances: fakes.TestBalanceMap{
@@ -440,21 +440,126 @@ var _ = Describe("OrderProcessor", MustPassRepeatedly(5), func() {
 					10_123: {Status: accdomain.OrderStatusProcessed, Accrual: 7.77},
 				}
 				testCtx.AccrualErrors = fakes.TestAccrualErrorMap{
-					10_123: {GetOrderStatus: fakes.NewTestError(3)},
+					10_123: {GetOrderStatus: fakes.NewTestError(1)},
 				}
 			})
 
-			It("should process no orders", func() {
-				orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
-					Balances: fakes.TestBalanceMap{
-						"user1": 0.0,
-					},
-					Orders: fakes.TestOrderMap{
-						10_123: {UserID: "user1", Status: domain.OrderStatusNew},
-					},
+			When("delays are too high", func() {
+				BeforeEach(func() {
+					orderProcessorOptions = append(orderProcessorOptions,
+						workers.WithOrderProcessorDelayConfig(
+							workers.NewOrderEventDelayConfig(
+								workers.WithOrderEventInitialDelay(10*time.Minute),
+								workers.WithOrderEventMaxJitter(5*time.Minute),
+								workers.WithOrderEventMaxDelay(1*time.Hour),
+								workers.WithOrderEventMinRetriesUntilBackOff(0),
+							),
+						),
+					)
 				})
 
-				Expect(orderProcessor.NumWakeups()).To(BeNumerically("==", 1))
+				It("should wake up only once", func() {
+					orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+						Balances: fakes.TestBalanceMap{
+							"user1": 0.0,
+						},
+						Orders: fakes.TestOrderMap{
+							10_123: {UserID: "user1", Status: domain.OrderStatusNew},
+						},
+					})
+
+					Expect(orderProcessor.NumWakeups()).To(BeNumerically("==", 1))
+				})
+			})
+
+			When("delays are moderate", func() {
+				var maxJitter time.Duration
+
+				BeforeEach(func() {
+					maxJitter = 50 * time.Millisecond
+
+					orderProcessorOptions = append(orderProcessorOptions,
+						workers.WithOrderProcessorDelayConfig(
+							workers.NewOrderEventDelayConfig(
+								workers.WithOrderEventInitialDelay(50*time.Millisecond),
+								workers.WithOrderEventMaxJitter(maxJitter),
+								workers.WithOrderEventMaxDelay(1*time.Second),
+								workers.WithOrderEventMinRetriesUntilBackOff(100),
+							),
+						),
+					)
+				})
+
+				Context("a single order is inflight", func() {
+					It("should wake up two times", func() {
+						orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 7.77,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 7.77},
+							},
+						})
+
+						Expect(accrualClient.NumCalls().GetOrderStatus).To(BeNumerically("==", 2))
+						Expect(orderProcessor.NumWakeups()).To(BeNumerically("==", 2))
+					})
+				})
+
+				Context("two orders are inflight on a single worker", func() {
+					BeforeEach(func() {
+						orderProcessorOptions = append(orderProcessorOptions,
+							workers.WithOrderProcessorWorkerPoolSize(1),
+						)
+
+						testCtx.OrderRepoData.Merge(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user2": 0.0,
+							},
+							Orders: fakes.TestOrderMap{
+								20_456: {UserID: "user2", Status: domain.OrderStatusNew},
+							},
+						})
+						testCtx.AccrualData.Merge(fakes.TestAccrualData{
+							20_456: {Status: accdomain.OrderStatusProcessing},
+						})
+
+						go func() {
+							time.Sleep(time.Duration(float64(runTimeout) / 2.0))
+
+							mu.Lock()
+							defer mu.Unlock()
+
+							accrualClient.InjectData(fakes.TestAccrualData{
+								20_456: {Status: accdomain.OrderStatusInvalid},
+							})
+
+							slog.Debug("test: injected accrual client data")
+						}()
+					})
+
+					It("should wake up multiple times until all orders are processed", func() {
+						orderRepo.GetData().ExpectEqual(fakes.TestOrderRepoData{
+							Balances: fakes.TestBalanceMap{
+								"user1": 7.77,
+								"user2": 0.0,
+							},
+							Orders: fakes.TestOrderMap{
+								10_123: {UserID: "user1", Status: domain.OrderStatusProcessed, Accrual: 7.77},
+								20_456: {UserID: "user2", Status: domain.OrderStatusInvalid},
+							},
+						})
+
+						expectedWakeups := int(float64(runTimeout) / float64(maxJitter) / 2.0)
+						expectedMaxWakeups := expectedWakeups * 3
+
+						Expect(accrualClient.NumCalls().GetOrderStatus).To(BeNumerically(">=", expectedWakeups+2))
+						Expect(accrualClient.NumCalls().GetOrderStatus).To(BeNumerically("<=", expectedMaxWakeups))
+
+						Expect(orderProcessor.NumWakeups()).To(BeNumerically(">=", expectedWakeups))
+						Expect(orderProcessor.NumWakeups()).To(BeNumerically("<=", expectedMaxWakeups))
+					})
+				})
 			})
 		})
 	})

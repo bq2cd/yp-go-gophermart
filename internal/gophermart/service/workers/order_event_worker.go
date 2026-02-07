@@ -145,10 +145,12 @@ func (w *orderEventWorker) processAccrualClientOrder(
 	var err error
 
 	orderID := domain.OrderID(accOrder.ID)
+	isReady := true
 
 	switch accOrder.Status {
 	case accdomain.OrderStatusRegistered, accdomain.OrderStatusProcessing:
 		err = w.orderRepo.MarkOrderProcessing(ctx, userID, orderID)
+		isReady = false
 	case accdomain.OrderStatusProcessed:
 		err = w.orderRepo.MarkOrderProcessed(ctx, userID, orderID, accOrder.AccrualPoints)
 	case accdomain.OrderStatusInvalid:
@@ -159,6 +161,10 @@ func (w *orderEventWorker) processAccrualClientOrder(
 
 	if err != nil {
 		return fmt.Errorf("cannot change order status: %w", err)
+	}
+
+	if !isReady {
+		return ErrOrderIsNotReady
 	}
 
 	return nil

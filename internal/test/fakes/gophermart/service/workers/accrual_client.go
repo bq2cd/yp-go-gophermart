@@ -75,6 +75,13 @@ func (c *TestAccrualClient) Setup(data TestAccrualData, errs TestAccrualErrorMap
 	c.numCalls = TestAccrualCalls{}
 }
 
+func (c *TestAccrualClient) InjectData(data TestAccrualData) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.data.Merge(data)
+}
+
 func (c *TestAccrualClient) NumCalls() TestAccrualCalls {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
