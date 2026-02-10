@@ -1,0 +1,48 @@
+[tools]
+go = "1.24"
+golangci-lint = "2.6"
+vacuum = "0.20"
+
+[tasks.pre-push]
+alias = "default"
+description = "Validate Go code before pushing/creating PR"
+depends = ["generate", "fmt", "lint", "test"]
+
+[tasks.generate]
+description = "Generate Go code"
+run = "go generate ./..."
+
+[tasks.fmt]
+description = "Format Go code"
+wait_for = ["generate"]
+run = "golangci-lint fmt"
+
+[tasks.lint]
+description = "Lint Go code"
+wait_for = ["generate", "fmt"]
+run = "golangci-lint run"
+
+[tasks.test]
+description = "Test Go code"
+wait_for = ["lint"]
+run = "go test -failfast -race ./..."
+
+[tasks.coverage]
+description = "Generate coverage for Go tests"
+wait_for = ["lint"]
+run = [
+  "go test -failfast -cover -coverpkg=./... -coverprofile=coverage.out ./...",
+  "go tool cover -html=coverage.out",
+]
+
+[tasks.openapi-lint]
+description = "Lint OpenAPI spec"
+run = "vacuum lint -b api/gophermart.yaml"
+sources = ["api/gophermart.yaml"]
+
+[tasks.mockgen]
+description = """
+Helper to run mockgen from //go:generate comments; it should only be invoked by 'go generate' process.
+Generated mocks are put under 'internal/test/mocks/<pkg_relative_path>' directory.
+"""
+run = "go run ./internal/test/cmd/mockgen"

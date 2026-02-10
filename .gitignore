@@ -21,3 +21,9 @@ vendor/
 # IDEs directories
 .idea
 .vscode
+
+# Mise (https://mise.jdx.dev/) local overrides
+.mise.local.toml
+
+# Local dev environment
+.env
